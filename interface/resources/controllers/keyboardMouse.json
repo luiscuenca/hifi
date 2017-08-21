@@ -131,6 +131,7 @@
         { "from": "Keyboard.Space", "to": "Actions.SHIFT" },
         { "from": "Keyboard.R", "to": "Actions.ACTION1" },
         { "from": "Keyboard.T", "to": "Actions.ACTION2" },
+		{ "from": "Keyboard.F", "to": "Actions.EMO_GIVE_FLOWER" },
         { "from": "Keyboard.Tab", "to": "Actions.ContextMenu" }
     ]
 }

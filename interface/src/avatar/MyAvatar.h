@@ -26,6 +26,7 @@
 
 #include "AtRestDetector.h"
 #include "MyCharacterController.h"
+#include "FancyCamera.h"
 #include <ThreadSafeValueCache.h>
 
 class AvatarActionHold;
@@ -49,100 +50,100 @@ Q_DECLARE_METATYPE(AudioListenerMode);
 class MyAvatar : public Avatar {
     Q_OBJECT
 
-    /**jsdoc
-     * Your avatar is your in-world representation of you. The MyAvatar API is used to manipulate the avatar.
-     * For example, using the MyAvatar API you can customize the avatar's appearance, run custom avatar animations,
-     * change the avatar's position within the domain, or manage the avatar's collisions with other objects.
-     * NOTE: MyAvatar extends Avatar and AvatarData, see those namespace for more properties/methods.
-     *
-     * @namespace MyAvatar
-     * @augments Avatar
-     * @property qmlPosition {Vec3} Used as a stopgap for position access by QML, as glm::vec3 is unavailable outside of scripts
-     * @property shouldRenderLocally {bool} Set it to true if you would like to see MyAvatar in your local interface,
-     *   and false if you would not like to see MyAvatar in your local interface.
-     * @property motorVelocity {Vec3} Can be used to move the avatar with this velocity.
-     * @property motorTimescale {float} Specifies how quickly the avatar should accelerate to meet the motorVelocity,
-     *   smaller values will result in higher acceleration.
-     * @property motorReferenceFrame {string} Reference frame of the motorVelocity, must be one of the following: "avatar", "camera", "world"
-     * @property collisionSoundURL {string} Specifies the sound to play when the avatar experiences a collision.
-     *   You can provide a mono or stereo 16-bit WAV file running at either 24 Khz or 48 Khz.
-     *   The latter is downsampled by the audio mixer, so all audio effectively plays back at a 24 Khz sample rate.
-     *   48 Khz RAW files are also supported.
-     * @property audioListenerMode {number} When hearing spatialized audio this determines where the listener placed.
-     *   Should be one of the following values:
-     *   MyAvatar.audioListenerModeHead - the listener located at the avatar's head.
-     *   MyAvatar.audioListenerModeCamera - the listener is relative to the camera.
-     *   MyAvatar.audioListenerModeCustom - the listener is at a custom location specified by the MyAvatar.customListenPosition
-     *   and MyAvatar.customListenOrientation properties.
-     * @property customListenPosition {Vec3} If MyAvatar.audioListenerMode == MyAvatar.audioListenerModeHead, then this determines the position
-     *   of audio spatialization listener.
-     * @property customListenOreintation {Quat} If MyAvatar.audioListenerMode == MyAvatar.audioListenerModeHead, then this determines the orientation
-     *   of the audio spatialization listener.
-     * @property audioListenerModeHead {number} READ-ONLY. When passed to MyAvatar.audioListenerMode, it will set the audio listener
-     *   around the avatar's head.
-     * @property audioListenerModeCamera {number} READ-ONLY. When passed to MyAvatar.audioListenerMode, it will set the audio listener
-     *   around the camera.
-     * @property audioListenerModeCustom {number} READ-ONLY. When passed to MyAvatar.audioListenerMode, it will set the audio listener
-     *  around the value specified by MyAvatar.customListenPosition and MyAvatar.customListenOrientation.
-     * @property leftHandPosition {Vec3} READ-ONLY. The desired position of the left wrist in avatar space, determined by the hand controllers.
-     *   Note: only valid if hand controllers are in use.
-     * @property rightHandPosition {Vec3} READ-ONLY. The desired position of the right wrist in avatar space, determined by the hand controllers.
-     *   Note: only valid if hand controllers are in use.
-     * @property leftHandTipPosition {Vec3} READ-ONLY. A position 30 cm offset from MyAvatar.leftHandPosition
-     * @property rightHandTipPosition {Vec3} READ-ONLY. A position 30 cm offset from MyAvatar.rightHandPosition
-     * @property leftHandPose {Pose} READ-ONLY. Returns full pose (translation, orientation, velocity & angularVelocity) of the desired
-     *   wrist position, determined by the hand controllers.
-     * @property rightHandPose {Pose} READ-ONLY. Returns full pose (translation, orientation, velocity & angularVelocity) of the desired
-     *   wrist position, determined by the hand controllers.
-     * @property leftHandTipPose {Pose} READ-ONLY. Returns a pose offset 30 cm from MyAvatar.leftHandPose
-     * @property rightHandTipPose {Pose} READ-ONLY. Returns a pose offset 30 cm from MyAvatar.rightHandPose
-     * @property hmdLeanRecenterEnabled {bool} This can be used disable the hmd lean recenter behavior.  This behavior is what causes your avatar
-     *   to follow your HMD as you walk around the room, in room scale VR.  Disabling this is useful if you desire to pin the avatar to a fixed location.
-     * @property collisionsEnabled {bool} This can be used to disable collisions between the avatar and the world.
-     * @property useAdvancedMovementControls {bool} Stores the user preference only, does not change user mappings, this is done in the defaultScript
-     *   "scripts/system/controllers/toggleAdvancedMovementForHandControllers.js".
-     */
+        /**jsdoc
+         * Your avatar is your in-world representation of you. The MyAvatar API is used to manipulate the avatar.
+         * For example, using the MyAvatar API you can customize the avatar's appearance, run custom avatar animations,
+         * change the avatar's position within the domain, or manage the avatar's collisions with other objects.
+         * NOTE: MyAvatar extends Avatar and AvatarData, see those namespace for more properties/methods.
+         *
+         * @namespace MyAvatar
+         * @augments Avatar
+         * @property qmlPosition {Vec3} Used as a stopgap for position access by QML, as glm::vec3 is unavailable outside of scripts
+         * @property shouldRenderLocally {bool} Set it to true if you would like to see MyAvatar in your local interface,
+         *   and false if you would not like to see MyAvatar in your local interface.
+         * @property motorVelocity {Vec3} Can be used to move the avatar with this velocity.
+         * @property motorTimescale {float} Specifies how quickly the avatar should accelerate to meet the motorVelocity,
+         *   smaller values will result in higher acceleration.
+         * @property motorReferenceFrame {string} Reference frame of the motorVelocity, must be one of the following: "avatar", "camera", "world"
+         * @property collisionSoundURL {string} Specifies the sound to play when the avatar experiences a collision.
+         *   You can provide a mono or stereo 16-bit WAV file running at either 24 Khz or 48 Khz.
+         *   The latter is downsampled by the audio mixer, so all audio effectively plays back at a 24 Khz sample rate.
+         *   48 Khz RAW files are also supported.
+         * @property audioListenerMode {number} When hearing spatialized audio this determines where the listener placed.
+         *   Should be one of the following values:
+         *   MyAvatar.audioListenerModeHead - the listener located at the avatar's head.
+         *   MyAvatar.audioListenerModeCamera - the listener is relative to the camera.
+         *   MyAvatar.audioListenerModeCustom - the listener is at a custom location specified by the MyAvatar.customListenPosition
+         *   and MyAvatar.customListenOrientation properties.
+         * @property customListenPosition {Vec3} If MyAvatar.audioListenerMode == MyAvatar.audioListenerModeHead, then this determines the position
+         *   of audio spatialization listener.
+         * @property customListenOreintation {Quat} If MyAvatar.audioListenerMode == MyAvatar.audioListenerModeHead, then this determines the orientation
+         *   of the audio spatialization listener.
+         * @property audioListenerModeHead {number} READ-ONLY. When passed to MyAvatar.audioListenerMode, it will set the audio listener
+         *   around the avatar's head.
+         * @property audioListenerModeCamera {number} READ-ONLY. When passed to MyAvatar.audioListenerMode, it will set the audio listener
+         *   around the camera.
+         * @property audioListenerModeCustom {number} READ-ONLY. When passed to MyAvatar.audioListenerMode, it will set the audio listener
+         *  around the value specified by MyAvatar.customListenPosition and MyAvatar.customListenOrientation.
+         * @property leftHandPosition {Vec3} READ-ONLY. The desired position of the left wrist in avatar space, determined by the hand controllers.
+         *   Note: only valid if hand controllers are in use.
+         * @property rightHandPosition {Vec3} READ-ONLY. The desired position of the right wrist in avatar space, determined by the hand controllers.
+         *   Note: only valid if hand controllers are in use.
+         * @property leftHandTipPosition {Vec3} READ-ONLY. A position 30 cm offset from MyAvatar.leftHandPosition
+         * @property rightHandTipPosition {Vec3} READ-ONLY. A position 30 cm offset from MyAvatar.rightHandPosition
+         * @property leftHandPose {Pose} READ-ONLY. Returns full pose (translation, orientation, velocity & angularVelocity) of the desired
+         *   wrist position, determined by the hand controllers.
+         * @property rightHandPose {Pose} READ-ONLY. Returns full pose (translation, orientation, velocity & angularVelocity) of the desired
+         *   wrist position, determined by the hand controllers.
+         * @property leftHandTipPose {Pose} READ-ONLY. Returns a pose offset 30 cm from MyAvatar.leftHandPose
+         * @property rightHandTipPose {Pose} READ-ONLY. Returns a pose offset 30 cm from MyAvatar.rightHandPose
+         * @property hmdLeanRecenterEnabled {bool} This can be used disable the hmd lean recenter behavior.  This behavior is what causes your avatar
+         *   to follow your HMD as you walk around the room, in room scale VR.  Disabling this is useful if you desire to pin the avatar to a fixed location.
+         * @property collisionsEnabled {bool} This can be used to disable collisions between the avatar and the world.
+         * @property useAdvancedMovementControls {bool} Stores the user preference only, does not change user mappings, this is done in the defaultScript
+         *   "scripts/system/controllers/toggleAdvancedMovementForHandControllers.js".
+         */
 
-    // FIXME: `glm::vec3 position` is not accessible from QML, so this exposes position in a QML-native type
-    Q_PROPERTY(QVector3D qmlPosition READ getQmlPosition)
-    QVector3D getQmlPosition() { auto p = getPosition(); return QVector3D(p.x, p.y, p.z); }
+         // FIXME: `glm::vec3 position` is not accessible from QML, so this exposes position in a QML-native type
+        Q_PROPERTY(QVector3D qmlPosition READ getQmlPosition)
+        QVector3D getQmlPosition() { auto p = getPosition(); return QVector3D(p.x, p.y, p.z); }
 
     Q_PROPERTY(bool shouldRenderLocally READ getShouldRenderLocally WRITE setShouldRenderLocally)
-    Q_PROPERTY(glm::vec3 motorVelocity READ getScriptedMotorVelocity WRITE setScriptedMotorVelocity)
-    Q_PROPERTY(float motorTimescale READ getScriptedMotorTimescale WRITE setScriptedMotorTimescale)
-    Q_PROPERTY(QString motorReferenceFrame READ getScriptedMotorFrame WRITE setScriptedMotorFrame)
-    Q_PROPERTY(QString collisionSoundURL READ getCollisionSoundURL WRITE setCollisionSoundURL)
-    Q_PROPERTY(AudioListenerMode audioListenerMode READ getAudioListenerMode WRITE setAudioListenerMode)
-    Q_PROPERTY(glm::vec3 customListenPosition READ getCustomListenPosition WRITE setCustomListenPosition)
-    Q_PROPERTY(glm::quat customListenOrientation READ getCustomListenOrientation WRITE setCustomListenOrientation)
-    Q_PROPERTY(AudioListenerMode audioListenerModeHead READ getAudioListenerModeHead)
-    Q_PROPERTY(AudioListenerMode audioListenerModeCamera READ getAudioListenerModeCamera)
-    Q_PROPERTY(AudioListenerMode audioListenerModeCustom READ getAudioListenerModeCustom)
-    //TODO: make gravity feature work Q_PROPERTY(glm::vec3 gravity READ getGravity WRITE setGravity)
+        Q_PROPERTY(glm::vec3 motorVelocity READ getScriptedMotorVelocity WRITE setScriptedMotorVelocity)
+        Q_PROPERTY(float motorTimescale READ getScriptedMotorTimescale WRITE setScriptedMotorTimescale)
+        Q_PROPERTY(QString motorReferenceFrame READ getScriptedMotorFrame WRITE setScriptedMotorFrame)
+        Q_PROPERTY(QString collisionSoundURL READ getCollisionSoundURL WRITE setCollisionSoundURL)
+        Q_PROPERTY(AudioListenerMode audioListenerMode READ getAudioListenerMode WRITE setAudioListenerMode)
+        Q_PROPERTY(glm::vec3 customListenPosition READ getCustomListenPosition WRITE setCustomListenPosition)
+        Q_PROPERTY(glm::quat customListenOrientation READ getCustomListenOrientation WRITE setCustomListenOrientation)
+        Q_PROPERTY(AudioListenerMode audioListenerModeHead READ getAudioListenerModeHead)
+        Q_PROPERTY(AudioListenerMode audioListenerModeCamera READ getAudioListenerModeCamera)
+        Q_PROPERTY(AudioListenerMode audioListenerModeCustom READ getAudioListenerModeCustom)
+        //TODO: make gravity feature work Q_PROPERTY(glm::vec3 gravity READ getGravity WRITE setGravity)
 
-    Q_PROPERTY(glm::vec3 leftHandPosition READ getLeftHandPosition)
-    Q_PROPERTY(glm::vec3 rightHandPosition READ getRightHandPosition)
-    Q_PROPERTY(glm::vec3 leftHandTipPosition READ getLeftHandTipPosition)
-    Q_PROPERTY(glm::vec3 rightHandTipPosition READ getRightHandTipPosition)
+        Q_PROPERTY(glm::vec3 leftHandPosition READ getLeftHandPosition)
+        Q_PROPERTY(glm::vec3 rightHandPosition READ getRightHandPosition)
+        Q_PROPERTY(glm::vec3 leftHandTipPosition READ getLeftHandTipPosition)
+        Q_PROPERTY(glm::vec3 rightHandTipPosition READ getRightHandTipPosition)
 
-    Q_PROPERTY(controller::Pose leftHandPose READ getLeftHandPose)
-    Q_PROPERTY(controller::Pose rightHandPose READ getRightHandPose)
-    Q_PROPERTY(controller::Pose leftHandTipPose READ getLeftHandTipPose)
-    Q_PROPERTY(controller::Pose rightHandTipPose READ getRightHandTipPose)
+        Q_PROPERTY(controller::Pose leftHandPose READ getLeftHandPose)
+        Q_PROPERTY(controller::Pose rightHandPose READ getRightHandPose)
+        Q_PROPERTY(controller::Pose leftHandTipPose READ getLeftHandTipPose)
+        Q_PROPERTY(controller::Pose rightHandTipPose READ getRightHandTipPose)
 
-    Q_PROPERTY(float energy READ getEnergy WRITE setEnergy)
-    Q_PROPERTY(bool isAway READ getIsAway WRITE setAway)
+        Q_PROPERTY(float energy READ getEnergy WRITE setEnergy)
+        Q_PROPERTY(bool isAway READ getIsAway WRITE setAway)
 
-    Q_PROPERTY(bool hmdLeanRecenterEnabled READ getHMDLeanRecenterEnabled WRITE setHMDLeanRecenterEnabled)
-    Q_PROPERTY(bool collisionsEnabled READ getCollisionsEnabled WRITE setCollisionsEnabled)
-    Q_PROPERTY(bool characterControllerEnabled READ getCharacterControllerEnabled WRITE setCharacterControllerEnabled)
-    Q_PROPERTY(bool useAdvancedMovementControls READ useAdvancedMovementControls WRITE setUseAdvancedMovementControls)
+        Q_PROPERTY(bool hmdLeanRecenterEnabled READ getHMDLeanRecenterEnabled WRITE setHMDLeanRecenterEnabled)
+        Q_PROPERTY(bool collisionsEnabled READ getCollisionsEnabled WRITE setCollisionsEnabled)
+        Q_PROPERTY(bool characterControllerEnabled READ getCharacterControllerEnabled WRITE setCharacterControllerEnabled)
+        Q_PROPERTY(bool useAdvancedMovementControls READ useAdvancedMovementControls WRITE setUseAdvancedMovementControls)
 
-    Q_PROPERTY(bool hmdRollControlEnabled READ getHMDRollControlEnabled WRITE setHMDRollControlEnabled)
-    Q_PROPERTY(float hmdRollControlDeadZone READ getHMDRollControlDeadZone WRITE setHMDRollControlDeadZone)
-    Q_PROPERTY(float hmdRollControlRate READ getHMDRollControlRate WRITE setHMDRollControlRate)
+        Q_PROPERTY(bool hmdRollControlEnabled READ getHMDRollControlEnabled WRITE setHMDRollControlEnabled)
+        Q_PROPERTY(float hmdRollControlDeadZone READ getHMDRollControlDeadZone WRITE setHMDRollControlDeadZone)
+        Q_PROPERTY(float hmdRollControlRate READ getHMDRollControlRate WRITE setHMDRollControlRate)
 
-    const QString DOMINANT_LEFT_HAND = "left";
+        const QString DOMINANT_LEFT_HAND = "left";
     const QString DOMINANT_RIGHT_HAND = "right";
 
 public:
@@ -161,7 +162,7 @@ public:
     };
     Q_ENUM(DriveKeys)
 
-    explicit MyAvatar(QThread* thread);
+        explicit MyAvatar(QThread* thread);
     ~MyAvatar();
 
     void instantiableAvatar() override {};
@@ -351,7 +352,9 @@ public:
 
     bool useAdvancedMovementControls() const { return _useAdvancedMovementControls.get(); }
     void setUseAdvancedMovementControls(bool useAdvancedMovementControls)
-        { _useAdvancedMovementControls.set(useAdvancedMovementControls); }
+    {
+        _useAdvancedMovementControls.set(useAdvancedMovementControls);
+    }
 
     void setHMDRollControlEnabled(bool value) { _hmdRollControlEnabled = value; }
     bool getHMDRollControlEnabled() const { return _hmdRollControlEnabled; }
@@ -373,7 +376,7 @@ public:
     float getDriveKey(DriveKeys key) const;
     Q_INVOKABLE float getRawDriveKey(DriveKeys key) const;
     void relayDriveKeysToCharacterController();
-    
+
     Q_INVOKABLE void disableDriveKey(DriveKeys key);
     Q_INVOKABLE void enableDriveKey(DriveKeys key);
     Q_INVOKABLE bool isDriveKeyDisabled(DriveKeys key) const;
@@ -521,16 +524,17 @@ public:
     Q_INVOKABLE bool isUp(const glm::vec3& direction) { return glm::dot(direction, _worldUpDirection) > 0.0f; }; // true iff direction points up wrt avatar's definition of up.
     Q_INVOKABLE bool isDown(const glm::vec3& direction) { return glm::dot(direction, _worldUpDirection) < 0.0f; };
 
-public slots:
+    public slots:
     void increaseSize();
     void decreaseSize();
     void resetSize();
+    void offer(const QString& offerAnim, const QString& offerModel, float timeOfferTotal, float timeOfferAppears, FancyCamera* mcamera);
     float getDomainMinScale();
     float getDomainMaxScale();
 
     void goToLocation(const glm::vec3& newPosition,
-                      bool hasOrientation = false, const glm::quat& newOrientation = glm::quat(),
-                      bool shouldFaceLocation = false);
+        bool hasOrientation = false, const glm::quat& newOrientation = glm::quat(),
+        bool shouldFaceLocation = false);
     void goToLocation(const QVariant& properties);
     void goToLocationAndEnableCollisions(const glm::vec3& newPosition);
     bool safeLanding(const glm::vec3& position);
@@ -604,9 +608,9 @@ private:
     void setScriptedMotorTimescale(float timescale);
     void setScriptedMotorFrame(QString frame);
     virtual void attach(const QString& modelURL, const QString& jointName = QString(),
-                        const glm::vec3& translation = glm::vec3(), const glm::quat& rotation = glm::quat(),
-                        float scale = 1.0f, bool isSoft = false,
-                        bool allowDuplicates = false, bool useSaved = true) override;
+        const glm::vec3& translation = glm::vec3(), const glm::quat& rotation = glm::quat(),
+        float scale = 1.0f, bool isSoft = false,
+        bool allowDuplicates = false, bool useSaved = true) override;
 
     bool cameraInsideHead(const glm::vec3& cameraPosition) const;
 
@@ -629,18 +633,18 @@ private:
     std::array<float, MAX_DRIVE_KEYS> _driveKeys;
     std::bitset<MAX_DRIVE_KEYS> _disabledDriveKeys;
 
-    bool _enableFlying { true };
-    bool _wasPushing { false };
-    bool _isPushing { false };
-    bool _isBeingPushed { false };
-    bool _isBraking { false };
-    bool _isAway { false };
+    bool _enableFlying{ true };
+    bool _wasPushing{ false };
+    bool _isPushing{ false };
+    bool _isBeingPushed{ false };
+    bool _isBraking{ false };
+    bool _isAway{ false };
 
-    float _boomLength { ZOOM_DEFAULT };
+    float _boomLength{ ZOOM_DEFAULT };
     float _yawSpeed; // degrees/sec
     float _pitchSpeed; // degrees/sec
 
-    glm::vec3 _thrust { 0.0f };  // impulse accumulator for outside sources
+    glm::vec3 _thrust{ 0.0f };  // impulse accumulator for outside sources
 
     glm::vec3 _actionMotorVelocity; // target local-frame velocity of avatar (default controller actions)
     glm::vec3 _scriptedMotorVelocity; // target local-frame velocity of avatar (analog script)
@@ -652,15 +656,15 @@ private:
     SharedSoundPointer _collisionSound;
 
     MyCharacterController _characterController;
-    int16_t _previousCollisionGroup { BULLET_COLLISION_GROUP_MY_AVATAR };
+    int16_t _previousCollisionGroup{ BULLET_COLLISION_GROUP_MY_AVATAR };
 
     AvatarWeakPointer _lookAtTargetAvatar;
     glm::vec3 _targetAvatarPosition;
-    bool _shouldRender { true };
+    bool _shouldRender{ true };
     float _oculusYawOffset;
 
     eyeContactTarget _eyeContactTarget;
-    float _eyeContactTargetTimer { 0.0f };
+    float _eyeContactTargetTimer{ 0.0f };
 
     glm::vec3 _trackedHeadPosition;
 
@@ -689,19 +693,19 @@ private:
     ThreadSafeValueCache<QUrl> _currentAnimGraphUrl;
     ThreadSafeValueCache<QUrl> _prefOverrideAnimGraphUrl;
     QUrl _fstAnimGraphOverrideUrl;
-    bool _useSnapTurn { true };
-    bool _clearOverlayWhenMoving { true };
-    QString _dominantHand { DOMINANT_RIGHT_HAND };
+    bool _useSnapTurn{ true };
+    bool _clearOverlayWhenMoving{ true };
+    QString _dominantHand{ DOMINANT_RIGHT_HAND };
 
     const float ROLL_CONTROL_DEAD_ZONE_DEFAULT = 8.0f; // deg
     const float ROLL_CONTROL_RATE_DEFAULT = 2.5f; // deg/sec/deg
-    bool _hmdRollControlEnabled { true };
-    float _hmdRollControlDeadZone { ROLL_CONTROL_DEAD_ZONE_DEFAULT };
-    float _hmdRollControlRate { ROLL_CONTROL_RATE_DEFAULT };
-    float _lastDrivenSpeed { 0.0f };
+    bool _hmdRollControlEnabled{ true };
+    float _hmdRollControlDeadZone{ ROLL_CONTROL_DEAD_ZONE_DEFAULT };
+    float _hmdRollControlRate{ ROLL_CONTROL_RATE_DEFAULT };
+    float _lastDrivenSpeed{ 0.0f };
 
     // working copies -- see AvatarData for thread-safe _sensorToWorldMatrixCache, used for outward facing access
-    glm::mat4 _sensorToWorldMatrix { glm::mat4() };
+    glm::mat4 _sensorToWorldMatrix{ glm::mat4() };
 
     // cache of the current HMD sensor position and orientation in sensor space.
     glm::mat4 _hmdSensorMatrix;
@@ -709,7 +713,7 @@ private:
     glm::vec3 _hmdSensorPosition;
     // cache head controller pose in sensor space
     glm::vec2 _headControllerFacing;  // facing vector in xz plane
-    glm::vec2 _headControllerFacingMovingAverage { 0, 0 };   // facing vector in xz plane
+    glm::vec2 _headControllerFacingMovingAverage{ 0, 0 };   // facing vector in xz plane
 
     // cache of the current body position and orientation of the avatar's body,
     // in sensor space.
@@ -742,6 +746,36 @@ private:
     };
     FollowHelper _follow;
 
+    // New helper that manages the timing events related to the offer action
+    // We pass a pointer to the camera in order to syncronize the change in point of view with the action.
+
+    struct OfferHelper {
+
+        OfferHelper();
+
+        enum TickType {
+            VoidTick = 0,
+            AppearsTick,
+            FinishTick
+        };
+
+        float _deltaTime;
+        float _timeOfferTotal;
+        float _timeOfferAppears;
+        QString _offerAnim;
+        QString _offerModel;
+        bool _isOfferHidden;
+        bool _isActive;
+        FancyCamera* _mcamera;
+        void configure(const QString& offerAnim, const QString& offerModel, float timeOfferTotal, float timeOfferAppears, FancyCamera* mcamera);
+        void activate(MyAvatar& myAvatar);
+        int getTickType(float timestamp);
+        void update(MyAvatar& myAvatar);
+        void reset();
+    };
+
+    OfferHelper _offer;
+    
     bool _goToPending { false };
     bool _physicsSafetyPending { false };
     glm::vec3 _goToPosition;

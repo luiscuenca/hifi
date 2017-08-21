@@ -1188,7 +1188,19 @@
                                                             "loopFlag": false
                                                         },
                                                         "children": []
-                                                    }
+                                                    },
+													{
+														"id": "offer",
+														"type": "clip",
+														"data": {
+															"url": "animations/offer.fbx",
+															"startFrame": 0.0,
+															"endFrame": 200.0,
+															"timeScale": 1.0,
+															"loopFlag": false
+														},
+														"children": []
+													}
                                                 ]
                                             }
                                         ]

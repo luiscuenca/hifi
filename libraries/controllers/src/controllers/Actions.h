@@ -174,8 +174,11 @@ enum class Action {
     TRACKED_OBJECT_13,
     TRACKED_OBJECT_14,
     TRACKED_OBJECT_15,
-
+    EMO_GIVE_FLOWER,
     NUM_ACTIONS
+
+    //Emo-actions
+    
 };
 
 template <typename T>

@@ -1214,6 +1214,12 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
                 getApplicationCompositor().setReticlePosition({ oldPos.x, oldPos.y + state });
             } else if (action == controller::toInt(controller::Action::TOGGLE_OVERLAY)) {
                 toggleOverlays();
+            } else if (action == controller::toInt(controller::Action::EMO_GIVE_FLOWER)) { 
+                auto myavatar = getMyAvatar();
+                QString offerAnim = PathUtils::resourcesPath() + "avatar/animations/offer.fbx";
+                QString offerModel = PathUtils::resourcesPath() + "avatar/mesh/flower.fbx";
+                myavatar->offer(offerAnim, offerModel, 300, 80, &_myCamera); 
+
             }
         }
     });

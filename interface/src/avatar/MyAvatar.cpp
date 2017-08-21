@@ -492,6 +492,7 @@ void MyAvatar::update(float deltaTime) {
     emit energyChanged(currentEnergy);
 
     updateEyeContactTarget(deltaTime);
+    
 }
 
 void MyAvatar::updateEyeContactTarget(float deltaTime) {
@@ -642,6 +643,7 @@ void MyAvatar::simulate(float deltaTime) {
     }
 
     updateAvatarEntities();
+    
 }
 
 // As far as I know no HMD system supports a play area of a kilometer in radius.
@@ -1572,6 +1574,10 @@ void MyAvatar::harvestResultsFromPhysicsSimulation(float deltaTime) {
     nextAttitude(position, orientation);
     _bodySensorMatrix = _follow.postPhysicsUpdate(*this, _bodySensorMatrix);
 
+
+    //Not sure this is right place to update
+    _offer.update(*this);
+
     if (_characterController.isEnabledAndReady()) {
         setVelocity(_characterController.getLinearVelocity() + _characterController.getFollowVelocity());
         if (_characterController.isStuck()) {
@@ -2213,6 +2219,8 @@ void MyAvatar::resetSize() {
     clampScaleChangeToDomainLimits(DEFAULT_AVATAR_SCALE);
 }
 
+
+
 void MyAvatar::restrictScaleFromDomainSettings(const QJsonObject& domainSettingsObject) {
     // pull out the minimum and maximum scale and set them to restrict our scale
 
@@ -2848,13 +2856,87 @@ glm::mat4 MyAvatar::FollowHelper::postPhysicsUpdate(const MyAvatar& myAvatar, co
         return currentBodyMatrix;
     }
 }
+MyAvatar::OfferHelper::OfferHelper() {
+    reset();
+}
+
+void MyAvatar::OfferHelper::configure(const QString& offerAnim, const QString& offerModel, float timeOfferTotal, float timeOfferAppears, FancyCamera* mcamera) {
+    _mcamera = mcamera;
+    _offerAnim = offerAnim;
+    _offerModel = offerModel;
+    _timeOfferTotal = timeOfferTotal;
+    _timeOfferAppears = timeOfferAppears;
+}
+
+void MyAvatar::OfferHelper::activate(MyAvatar& myAvatar) {
+    _isOfferHidden = true;
+    _isActive = true;
+    myAvatar.overrideAnimation( _offerAnim, 30, false, 0, _timeOfferTotal);
+    _mcamera->setMode(CameraMode::CAMERA_MODE_INDEPENDENT);
+    glm::vec3 campos = _mcamera->getPosition() + 2.0f*(myAvatar.getPosition() - _mcamera->getPosition());
+    _mcamera->setPosition(glm::vec3(campos.x, _mcamera->getPosition().y, campos.z));
+    _mcamera->lookAt(myAvatar.getPosition());
+}
+
+int MyAvatar::OfferHelper::getTickType(float deltaTime) {
+    if (deltaTime > _timeOfferAppears) {
+        if (_isOfferHidden) {
+            _isOfferHidden = false;
+            return TickType::AppearsTick;
+        }
+        else if (deltaTime > _timeOfferTotal) {
+            return TickType::FinishTick;
+        }
+    }
+    return TickType::VoidTick;
+}
+
+void MyAvatar::OfferHelper::reset() {
+    _deltaTime = 0.0f;
+    _timeOfferTotal = 0.0f;
+    _timeOfferAppears = 0.0f;
+    _offerAnim = "";
+    _offerModel = "";
+    _isOfferHidden = true;
+    _isActive = false;
+}
+
+void MyAvatar::OfferHelper::update(MyAvatar& myAvatar) {
+    if (_isActive) {
+        int ttype = getTickType(_deltaTime++);
+        switch (ttype) {
+        case (TickType::AppearsTick): {
+                glm::vec3 trans = glm::vec3(0.0f, 0.15f, 0.0f);
+                myAvatar.attach(_offerModel, "RightHand", trans);
+                std::string om = _offerModel.toStdString();
+                
+                break;
+            }
+
+        case (TickType::FinishTick): {
+                std::string om = _offerModel.toStdString();
+                myAvatar.detachOne(_offerModel, "RightHand");
+                myAvatar.restoreAnimation();
+                _mcamera->setMode(CameraMode::CAMERA_MODE_THIRD_PERSON);
+                reset();
+                break;
+            }
+        }
+    }
+}
+
+void MyAvatar::offer(const QString& offerAnim, const QString& offerModel, float timeOfferTotal, float timeOfferAppears, FancyCamera* mcamera) {
+    if (!_offer._isActive) {
+        _offer.configure(offerAnim, offerModel, timeOfferTotal, timeOfferAppears, mcamera);
+        _offer.activate(*this);
+    }
+}
 
 float MyAvatar::getAccelerationEnergy() {
     glm::vec3 velocity = getVelocity();
     int changeInVelocity = abs(velocity.length() - priorVelocity.length());
     float changeInEnergy = priorVelocity.length() * changeInVelocity * AVATAR_MOVEMENT_ENERGY_CONSTANT;
     priorVelocity = velocity;
-
     return changeInEnergy;
 }
 

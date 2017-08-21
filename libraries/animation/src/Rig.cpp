@@ -639,7 +639,8 @@ void Rig::computeMotionAnimationState(float deltaTime, const glm::vec3& worldPos
                 _desiredStateAge = 0.0f;
             }
             _desiredState = RigRole::Takeoff;
-        } else {
+        }
+        else {
             float moveThresh;
             if (_state != RigRole::Move) {
                 moveThresh = MOVE_ENTER_SPEED_THRESHOLD;
