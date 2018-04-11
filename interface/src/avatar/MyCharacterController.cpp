@@ -41,6 +41,39 @@ void MyCharacterController::setDynamicsWorld(btDynamicsWorld* world) {
     }
 }
 
+void MyCharacterController::createDetailedCollisions() { 
+    static const int DETAILED_COLLISION_RADIUS = 0.01;
+    const Rig& rig = _avatar->getSkeletonModel()->getRig();
+    const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
+    _worldCollisionShapes.clear();
+    for (int i = 0; i < rig.getJointStateCount(); i++) {
+        const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
+        std::vector<btVector3> btPoints;
+        _worldCollisionShapes.push_back(std::vector<glm::vec3>());
+        for (int j = 0; j < shapeInfo.debugLines.size(); j++) {
+            const glm::vec3 &point = shapeInfo.debugLines[j];
+            auto rigPoint = extractScale(rig.getGeometryToRigTransform()) * point;
+            _worldCollisionShapes[i].push_back(rigPoint);
+            if (i == 18) {
+                qDebug() << "hull point: x=" << rigPoint.x << " y=" << rigPoint.y << " z=" << rigPoint.z;
+            }
+            btVector3 btPoint = glmToBullet(rigPoint);
+            btPoints.push_back(btPoint);
+        }
+        
+        btCollisionObject* collisionObject = nullptr;
+
+        if (btPoints.size() > 5 && btPoints.size() < 125) {
+            collisionObject = new btCollisionObject();
+            btCollisionShape* collisionShape = computeDetailedShape(btPoints, DETAILED_COLLISION_RADIUS);
+            collisionObject->setCollisionShape(collisionShape);
+        } else {
+            _worldCollisionShapes.push_back(std::vector<glm::vec3>());
+        }
+        _detailedCollisions.push_back(collisionObject);
+    }
+}
+
 void MyCharacterController::updateShapeIfNecessary() {
     if (_pendingFlags & PENDING_FLAG_UPDATE_SHAPE) {
         _pendingFlags &= ~PENDING_FLAG_UPDATE_SHAPE;
@@ -60,6 +93,9 @@ void MyCharacterController::updateShapeIfNecessary() {
                 shape = computeShape();
                 _rigidBody->setCollisionShape(shape);
             }
+            if (_detailedCollisions.size() == 0) {
+                createDetailedCollisions();
+            }
             updateMassProperties();
 
             _rigidBody->setSleepingThresholds(0.0f, 0.0f);
@@ -76,6 +112,16 @@ void MyCharacterController::updateShapeIfNecessary() {
                     ~(btCollisionObject::CF_KINEMATIC_OBJECT | btCollisionObject::CF_STATIC_OBJECT));
         } else {
             // TODO: handle this failure case
+        }
+    }
+}
+
+void MyCharacterController::updateDetailedCollisions() {
+    for (int i = 0; i < _detailedCollisions.size(); i++) {
+        if (_detailedCollisions[i]) {
+            auto collisionRot = _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
+            auto collisionPos = _avatar->getJointPosition(i);
+            _detailedCollisions[i]->setWorldTransform(btTransform(glmToBullet(collisionRot), glmToBullet(collisionPos)));
         }
     }
 }
@@ -221,6 +267,30 @@ btConvexHullShape* MyCharacterController::computeShape() const {
     points[5] = (0.75f * _halfHeight) * yAxis + (0.1f * _radius) * xAxis;
     btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points), NUM_POINTS);
     shape->setMargin(_radius);
+    return shape;
+}
+
+btConvexHullShape* MyCharacterController::computeDetailedShape(std::vector<btVector3>& points, float radius) const {
+    btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points.data()), (int)points.size());    
+    shape->setMargin(radius);
+    return shape;
+}
+
+btConvexHullShape* MyCharacterController::computeCollisionObjectShape() const {
+    const int32_t NUM_POINTS = 6;
+    btVector3 points[NUM_POINTS];
+    btVector3 xAxis = btVector3(1.0f, 0.0f, 0.0f);
+    btVector3 yAxis = btVector3(0.0f, 1.0f, 0.0f);
+    btVector3 zAxis = btVector3(0.0f, 0.0f, 1.0f);
+    btScalar mradius = 0.01;
+    points[0] = mradius * yAxis;
+    points[1] = -mradius* yAxis;
+    points[2] = mradius * zAxis;
+    points[3] = -mradius * zAxis;
+    points[4] = mradius * xAxis;
+    points[5] = -mradius * xAxis;
+    btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points), NUM_POINTS);
+    shape->setMargin(mradius);
     return shape;
 }
 

@@ -27,6 +27,8 @@ public:
     void setDynamicsWorld(btDynamicsWorld* world) override;
     void updateShapeIfNecessary() override;
 
+    void updateDetailedCollisions();
+
     // Sweeping a convex shape through the physics simulation can be expensive when the obstacles are too
     // complex (e.g. small 20k triangle static mesh) so instead we cast several rays forward and if they
     // don't hit anything we consider it a clean sweep.  Hence this "Shotgun" code.
@@ -41,6 +43,7 @@ public:
     bool testRayShotgun(const glm::vec3& position, const glm::vec3& step, RayShotgunResult& result);
 
     void setDensity(btScalar density) { _density = density; }
+    std::vector<std::vector<glm::vec3>> getWorldCollisionShapes() const { return _worldCollisionShapes; };
 
 protected:
     void initRayShotgun(const btCollisionWorld* world);
@@ -48,6 +51,11 @@ protected:
 
 private:
     btConvexHullShape* computeShape() const;
+    btConvexHullShape* computeDetailedShape(std::vector<btVector3>& points, float radius) const;
+    btConvexHullShape* computeCollisionObjectShape() const;
+    void createDetailedCollisions();
+    std::vector<std::vector<glm::vec3>> _worldCollisionShapes;
+    
 
 protected:
     MyAvatar* _avatar { nullptr };

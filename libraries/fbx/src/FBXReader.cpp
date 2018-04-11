@@ -1960,6 +1960,7 @@ FBXGeometry* FBXReader::extractFBXGeometry(const QVariantHash& mapping, const QS
                 joint.shapeInfo.dots.push_back(-minDot);
             }
             generateBoundryLinesForDop14(joint.shapeInfo.dots, joint.shapeInfo.avgPoint, joint.shapeInfo.debugLines);
+            qDebug() << "Dop14 " << joint.shapeInfo.debugLines.size() << " lines: " << url;
         }
     }
     geometry.palmDirection = parseVec3(mapping.value("palmDirection", "0, -1, 0").toString());

@@ -206,6 +206,7 @@ protected:
     btRigidBody* _rigidBody { nullptr };
     uint32_t _pendingFlags { 0 };
     uint32_t _previousFlags { 0 };
+    std::vector<btCollisionObject*> _detailedCollisions;
 
     bool _flyingAllowed { true };
     bool _collisionlessAllowed { true };
