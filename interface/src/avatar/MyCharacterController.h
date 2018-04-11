@@ -51,9 +51,10 @@ protected:
 
 private:
     btConvexHullShape* computeShape() const;
+    btConvexHullShape* computeGroundShape() const;
     btConvexHullShape* computeDetailedShape(std::vector<btVector3>& points, float radius) const;
     btConvexHullShape* computeCollisionObjectShape() const;
-    void createDetailedCollisions();
+    void updateDetailedCollisionsShapes();
     std::vector<std::vector<glm::vec3>> _worldCollisionShapes;
     
 

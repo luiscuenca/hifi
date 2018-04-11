@@ -41,11 +41,26 @@ void MyCharacterController::setDynamicsWorld(btDynamicsWorld* world) {
     }
 }
 
-void MyCharacterController::createDetailedCollisions() { 
+void MyCharacterController::updateDetailedCollisionsShapes() {
     static const int DETAILED_COLLISION_RADIUS = 0.01;
     const Rig& rig = _avatar->getSkeletonModel()->getRig();
     const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
+    if (_detailedCollisions.size() > 0) {
+        for (int i = 0; i < _detailedCollisions.size(); i++) {
+            if (_detailedCollisions[i]) {
+                auto shape = _detailedCollisions[i]->getCollisionShape();
+                if (shape) {
+                    delete shape;
+                }
+                delete _detailedCollisions[i];
+                _detailedCollisions[i] = nullptr;
+            }
+        }
+    }
+
     _worldCollisionShapes.clear();
+    _detailedCollisions.clear();
+
     for (int i = 0; i < rig.getJointStateCount(); i++) {
         const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
         std::vector<btVector3> btPoints;
@@ -81,7 +96,7 @@ void MyCharacterController::updateShapeIfNecessary() {
         if (_radius > 0.0f) {
             // create RigidBody if it doesn't exist
             if (!_rigidBody) {
-                btCollisionShape* shape = computeShape();
+                btCollisionShape* shape = computeGroundShape();
                 btScalar mass = 1.0f;
                 btVector3 inertia(1.0f, 1.0f, 1.0f);
                 _rigidBody = new btRigidBody(mass, nullptr, shape, inertia);
@@ -90,12 +105,11 @@ void MyCharacterController::updateShapeIfNecessary() {
                 if (shape) {
                     delete shape;
                 }
-                shape = computeShape();
+                shape = computeGroundShape();
                 _rigidBody->setCollisionShape(shape);
             }
-            if (_detailedCollisions.size() == 0) {
-                createDetailedCollisions();
-            }
+            
+            updateDetailedCollisionsShapes();
             updateMassProperties();
 
             _rigidBody->setSleepingThresholds(0.0f, 0.0f);
@@ -265,6 +279,24 @@ btConvexHullShape* MyCharacterController::computeShape() const {
     points[3] = (0.75f * _halfHeight) * yAxis + (0.1f * _radius) * zAxis;
     points[4] = (0.75f * _halfHeight) * yAxis - (0.1f * _radius) * xAxis;
     points[5] = (0.75f * _halfHeight) * yAxis + (0.1f * _radius) * xAxis;
+    btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points), NUM_POINTS);
+    shape->setMargin(_radius);
+    return shape;
+}
+
+btConvexHullShape* MyCharacterController::computeGroundShape() const {
+    // This shape will prevent the avatar from falling through the ground.
+    const int32_t NUM_POINTS = 6;
+    btVector3 points[NUM_POINTS];
+    btVector3 xAxis = btVector3(1.0f, 0.0f, 0.0f);
+    btVector3 yAxis = btVector3(0.0f, 1.0f, 0.0f);
+    btVector3 zAxis = btVector3(0.0f, 0.0f, 1.0f);
+    points[0] = 0.05f*_halfHeight * yAxis;
+    points[1] = -_halfHeight * yAxis;
+    points[2] = (0.012f * _halfHeight) * yAxis - (0.1f * _radius) * zAxis;
+    points[3] = (0.012f * _halfHeight) * yAxis + (0.1f * _radius) * zAxis;
+    points[4] = (0.012f * _halfHeight) * yAxis - (0.1f * _radius) * xAxis;
+    points[5] = (0.012f * _halfHeight) * yAxis + (0.1f * _radius) * xAxis;
     btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points), NUM_POINTS);
     shape->setMargin(_radius);
     return shape;
