@@ -291,12 +291,12 @@ btConvexHullShape* MyCharacterController::computeGroundShape() const {
     btVector3 xAxis = btVector3(1.0f, 0.0f, 0.0f);
     btVector3 yAxis = btVector3(0.0f, 1.0f, 0.0f);
     btVector3 zAxis = btVector3(0.0f, 0.0f, 1.0f);
-    points[0] = 0.05f*_halfHeight * yAxis;
+    points[0] = -0.96f*_halfHeight * yAxis;
     points[1] = -_halfHeight * yAxis;
-    points[2] = (0.012f * _halfHeight) * yAxis - (0.1f * _radius) * zAxis;
-    points[3] = (0.012f * _halfHeight) * yAxis + (0.1f * _radius) * zAxis;
-    points[4] = (0.012f * _halfHeight) * yAxis - (0.1f * _radius) * xAxis;
-    points[5] = (0.012f * _halfHeight) * yAxis + (0.1f * _radius) * xAxis;
+    points[2] = -(0.98f * _halfHeight) * yAxis - (0.1f * _radius) * zAxis;
+    points[3] = -(0.98f * _halfHeight) * yAxis + (0.1f * _radius) * zAxis;
+    points[4] = -(0.98f * _halfHeight) * yAxis - (0.1f * _radius) * xAxis;
+    points[5] = -(0.98f * _halfHeight) * yAxis + (0.1f * _radius) * xAxis;
     btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points), NUM_POINTS);
     shape->setMargin(_radius);
     return shape;
