@@ -46,7 +46,7 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
     const Rig& rig = _avatar->getSkeletonModel()->getRig();
     const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
     if (_detailedCollisions.size() > 0) {
-        for (int i = 0; i < _detailedCollisions.size(); i++) {
+        for (int32_t i = 0; i < _detailedCollisions.size(); i++) {
             if (_detailedCollisions[i]) {
                 auto shape = _detailedCollisions[i]->getCollisionShape();
                 if (shape) {
@@ -61,17 +61,14 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
     _worldCollisionShapes.clear();
     _detailedCollisions.clear();
 
-    for (int i = 0; i < rig.getJointStateCount(); i++) {
+    for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
         const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
         std::vector<btVector3> btPoints;
         _worldCollisionShapes.push_back(std::vector<glm::vec3>());
-        for (int j = 0; j < shapeInfo.debugLines.size(); j++) {
+        for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
             const glm::vec3 &point = shapeInfo.debugLines[j];
             auto rigPoint = extractScale(rig.getGeometryToRigTransform()) * point;
             _worldCollisionShapes[i].push_back(rigPoint);
-            if (i == 18) {
-                qDebug() << "hull point: x=" << rigPoint.x << " y=" << rigPoint.y << " z=" << rigPoint.z;
-            }
             btVector3 btPoint = glmToBullet(rigPoint);
             btPoints.push_back(btPoint);
         }
@@ -131,7 +128,7 @@ void MyCharacterController::updateShapeIfNecessary() {
 }
 
 void MyCharacterController::updateDetailedCollisions() {
-    for (int i = 0; i < _detailedCollisions.size(); i++) {
+    for (int32_t i = 0; i < _detailedCollisions.size(); i++) {
         if (_detailedCollisions[i]) {
             auto collisionRot = _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
             auto collisionPos = _avatar->getJointPosition(i);
@@ -314,7 +311,7 @@ btConvexHullShape* MyCharacterController::computeCollisionObjectShape() const {
     btVector3 xAxis = btVector3(1.0f, 0.0f, 0.0f);
     btVector3 yAxis = btVector3(0.0f, 1.0f, 0.0f);
     btVector3 zAxis = btVector3(0.0f, 0.0f, 1.0f);
-    btScalar mradius = 0.01;
+    btScalar mradius = 0.01f;
     points[0] = mradius * yAxis;
     points[1] = -mradius* yAxis;
     points[2] = mradius * zAxis;
