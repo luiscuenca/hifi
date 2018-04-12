@@ -151,6 +151,19 @@ protected:
         btScalar vTimescale { MAX_CHARACTER_MOTOR_TIMESCALE }; // vertical
     };
 
+    struct CharacterDetailCollisions {
+        static const int DETAILED_COLLISION_RADIUS = 0.01;
+        void setDynamicsWorld(btDynamicsWorld* world);
+        void addRigidBody(std::vector<btVector3>& points);
+        void setRigidBodyTransform(int jointIndex, glm::quat& rotation, glm::vec3& position);
+        void update();
+        void remove();
+        void cleanup();
+        bool hasRigidBody(int jointIndex);
+        std::vector<btCollisionObject*> _rigidBodies;
+        btDynamicsWorld* _world;
+    };
+
     std::vector<CharacterMotor> _motors;
     CharacterGhostObject _ghost;
     btVector3 _currentUp;
@@ -206,7 +219,7 @@ protected:
     btRigidBody* _rigidBody { nullptr };
     uint32_t _pendingFlags { 0 };
     uint32_t _previousFlags { 0 };
-    std::vector<btCollisionObject*> _detailedCollisions;
+    CharacterDetailCollisions _detailedCollisions;
 
     bool _flyingAllowed { true };
     bool _collisionlessAllowed { true };

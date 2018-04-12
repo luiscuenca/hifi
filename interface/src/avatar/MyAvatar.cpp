@@ -2005,7 +2005,7 @@ void MyAvatar::postUpdate(float deltaTime, const render::ScenePointer& scene) {
             glm::vec4(1.0f, 0.65f, 0.0f, 1.0f)  // Orange you glad I added this color?
         };
 
-        
+        /*
         if (_skeletonModel && _skeletonModel->isLoaded()) {
             const Rig& rig = _skeletonModel->getRig();
             const FBXGeometry& geometry = _skeletonModel->getFBXGeometry();
@@ -2022,35 +2022,24 @@ void MyAvatar::postUpdate(float deltaTime, const render::ScenePointer& scene) {
                 }
             }
         }
+        */
         
-        /*
         if (_skeletonModel && _skeletonModel->isLoaded()) {
-            const Rig& rig = _skeletonModel->getRig();
-            const FBXGeometry& geometry = _skeletonModel->getFBXGeometry();
             const std::vector<std::vector<glm::vec3>> shapes = _characterController.getWorldCollisionShapes();
             if (shapes.size() > 0) {
-                for (int i = 0; i < rig.getJointStateCount(); i++) {
-                    AnimPose jointPose;
-                    rig.getAbsoluteJointPoseInRigFrame(i, jointPose);
-
-                    const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
-                    const AnimPose pose = rigToWorldPose * jointPose;
-
+                for (int i = 0; i < shapes.size(); i++) {
                     auto shape = shapes[i];
                     if (shape.size() > 0) {
                         for (size_t j = 0; j < shape.size() / 2; j++) {
-                            // glm::vec3 pointOriA = pose.xformPoint(shapeInfo.debugLines[2 * j]);
-                            // glm::vec3 pointOriB = pose.xformPoint(shapeInfo.debugLines[2 * j + 1]);
                             glm::vec3 pointA = jointToWorldPoint(shape[2 * j], i);
                             glm::vec3 pointB = jointToWorldPoint(shape[2 * j + 1], i);
                             DebugDraw::getInstance().drawRay(pointA, pointB, DEBUG_COLORS[i % NUM_DEBUG_COLORS]);
-                            
                         }
                     }
                 }
             }
         }
-        */
+        
     }
 }
 

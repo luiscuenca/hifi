@@ -42,48 +42,27 @@ void MyCharacterController::setDynamicsWorld(btDynamicsWorld* world) {
 }
 
 void MyCharacterController::updateDetailedCollisionsShapes() {
-    static const int DETAILED_COLLISION_RADIUS = 0.01;
     const Rig& rig = _avatar->getSkeletonModel()->getRig();
-    const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
-    if (_detailedCollisions.size() > 0) {
-        for (int32_t i = 0; i < _detailedCollisions.size(); i++) {
-            if (_detailedCollisions[i]) {
-                auto shape = _detailedCollisions[i]->getCollisionShape();
-                if (shape) {
-                    delete shape;
-                }
-                delete _detailedCollisions[i];
-                _detailedCollisions[i] = nullptr;
-            }
-        }
-    }
+    if (_avatar->getSkeletonModel()->isActive()) {
+        const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
+        _detailedCollisions.cleanup();
+        _worldCollisionShapes.clear();
 
-    _worldCollisionShapes.clear();
-    _detailedCollisions.clear();
-
-    for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
-        const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
-        std::vector<btVector3> btPoints;
-        _worldCollisionShapes.push_back(std::vector<glm::vec3>());
-        for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
-            const glm::vec3 &point = shapeInfo.debugLines[j];
-            auto rigPoint = extractScale(rig.getGeometryToRigTransform()) * point;
-            _worldCollisionShapes[i].push_back(rigPoint);
-            btVector3 btPoint = glmToBullet(rigPoint);
-            btPoints.push_back(btPoint);
-        }
-        
-        btCollisionObject* collisionObject = nullptr;
-
-        if (btPoints.size() > 5 && btPoints.size() < 125) {
-            collisionObject = new btCollisionObject();
-            btCollisionShape* collisionShape = computeDetailedShape(btPoints, DETAILED_COLLISION_RADIUS);
-            collisionObject->setCollisionShape(collisionShape);
-        } else {
+        for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
+            const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
+            std::vector<btVector3> btPoints;
             _worldCollisionShapes.push_back(std::vector<glm::vec3>());
+            for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
+                const glm::vec3 &point = shapeInfo.debugLines[j];
+                auto rigPoint = extractScale(rig.getGeometryToRigTransform()) * point;
+                _worldCollisionShapes[i].push_back(rigPoint);
+                btVector3 btPoint = glmToBullet(rigPoint);
+                btPoints.push_back(btPoint);
+            }
+            _detailedCollisions.addRigidBody(btPoints);
         }
-        _detailedCollisions.push_back(collisionObject);
     }
+
 }
 
 void MyCharacterController::updateShapeIfNecessary() {
@@ -128,11 +107,12 @@ void MyCharacterController::updateShapeIfNecessary() {
 }
 
 void MyCharacterController::updateDetailedCollisions() {
-    for (int32_t i = 0; i < _detailedCollisions.size(); i++) {
-        if (_detailedCollisions[i]) {
-            auto collisionRot = _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
-            auto collisionPos = _avatar->getJointPosition(i);
-            _detailedCollisions[i]->setWorldTransform(btTransform(glmToBullet(collisionRot), glmToBullet(collisionPos)));
+    const Rig& rig = _avatar->getSkeletonModel()->getRig();
+    for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
+        if (_detailedCollisions.hasRigidBody(i)) {
+            auto jointRotation = _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
+            auto jointPosition = _avatar->getJointPosition(i);
+            _detailedCollisions.setRigidBodyTransform(i, jointRotation, jointPosition);
         }
     }
 }
@@ -296,30 +276,6 @@ btConvexHullShape* MyCharacterController::computeGroundShape() const {
     points[5] = -(0.98f * _halfHeight) * yAxis + (0.1f * _radius) * xAxis;
     btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points), NUM_POINTS);
     shape->setMargin(_radius);
-    return shape;
-}
-
-btConvexHullShape* MyCharacterController::computeDetailedShape(std::vector<btVector3>& points, float radius) const {
-    btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points.data()), (int)points.size());    
-    shape->setMargin(radius);
-    return shape;
-}
-
-btConvexHullShape* MyCharacterController::computeCollisionObjectShape() const {
-    const int32_t NUM_POINTS = 6;
-    btVector3 points[NUM_POINTS];
-    btVector3 xAxis = btVector3(1.0f, 0.0f, 0.0f);
-    btVector3 yAxis = btVector3(0.0f, 1.0f, 0.0f);
-    btVector3 zAxis = btVector3(0.0f, 0.0f, 1.0f);
-    btScalar mradius = 0.01f;
-    points[0] = mradius * yAxis;
-    points[1] = -mradius* yAxis;
-    points[2] = mradius * zAxis;
-    points[3] = -mradius * zAxis;
-    points[4] = mradius * xAxis;
-    points[5] = -mradius * xAxis;
-    btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points), NUM_POINTS);
-    shape->setMargin(mradius);
     return shape;
 }
 
