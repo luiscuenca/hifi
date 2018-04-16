@@ -61,63 +61,87 @@ CharacterController::CharacterMotor::CharacterMotor(const glm::vec3& vel, const 
     }
 }
 
-void CharacterController::CharacterDetailCollisions::setDynamicsWorld(btDynamicsWorld* world) {
+CharacterController::CharacterDetailedRigidBody::CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints) {
+    btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(shapePoints.data()), (int)shapePoints.size());
+    shape->setMargin(DETAILED_COLLISION_RADIUS);
+    _motionState = new btDefaultMotionState();
+    _rigidBody = new btRigidBody(DETAILED_MASS_KINEMATIC, _motionState, shape);
+    _rigidBody->setCollisionShape(shape);
+    _rigidBody->setActivationState(DISABLE_DEACTIVATION);
+    _rigidBody->setSleepingThresholds(0.0, 0.0);
+}
+
+void CharacterController::CharacterDetailedRigidBody::cleanUp() {
+    if (_motionState) {
+        delete _motionState;
+        _motionState = nullptr;
+    }
+    if (_rigidBody) {
+        btCollisionShape* shape = _rigidBody->getCollisionShape();
+        if (shape) {
+            delete shape;
+        }
+        delete _rigidBody;
+        _rigidBody = nullptr;
+    }
+}
+
+void CharacterController::CharacterDetailedRigidBody::setTransform(btQuaternion& rotation, btVector3& position) {
+    _rotation = rotation;
+    _position = position;
+    btTransform trans = btTransform(_rotation, _position);
+    btTransform lastTransform = _rigidBody->getWorldTransform();
+    btVector3 velocity = trans.getOrigin() - lastTransform.getOrigin();
+    _rigidBody->setLinearVelocity(LINEAR_VELOCITY_MULTIPLIER * velocity);
+    _rigidBody->setWorldTransform(trans);
+}
+
+void CharacterController::CharacterDetailedCollisions::setDynamicsWorld(btDynamicsWorld* world) {
     _world = world;
 }
 
-bool CharacterController::CharacterDetailCollisions::hasRigidBody(int jointIndex) {
-    return _rigidBodies.size() > jointIndex && _rigidBodies[jointIndex]; 
+bool CharacterController::CharacterDetailedCollisions::hasRigidBody(int jointIndex) {
+    return _rigidBodies.size() > jointIndex && _rigidBodies[jointIndex]._rigidBody; 
 }
 
-void CharacterController::CharacterDetailCollisions::setRigidBodyTransform(int jointIndex, glm::quat& rotation, glm::vec3& position) {
+void CharacterController::CharacterDetailedCollisions::setRigidBodyTransform(int jointIndex, glm::quat& rotation, glm::vec3& position) {
     if (hasRigidBody(jointIndex)) {
-        _rigidBodies[jointIndex]->setWorldTransform(btTransform(glmToBullet(rotation), glmToBullet(position)));
+        _rigidBodies[jointIndex].setTransform(glmToBullet(rotation), glmToBullet(position));
     }
 }
 
-void CharacterController::CharacterDetailCollisions::remove() {
+void CharacterController::CharacterDetailedCollisions::remove() {
     for (int i = 0; i < _rigidBodies.size(); i++) {
         if (hasRigidBody(i)) {
-            _world->removeCollisionObject(_rigidBodies[i]);
+            _world->removeCollisionObject(_rigidBodies[i]._rigidBody);
         }
     }
 }
 
-void CharacterController::CharacterDetailCollisions::cleanup() {
+void CharacterController::CharacterDetailedCollisions::cleanup() {
     for (int i = 0; i < _rigidBodies.size(); i++) {
-        if (hasRigidBody(i)) {
-            _world->removeCollisionObject(_rigidBodies[i]);
-            btCollisionObject* collision = _rigidBodies[i];
-            btCollisionShape* shape = collision->getCollisionShape();
-            if (shape) {
-                delete shape;
-            }
-            delete collision;
-            collision = nullptr;
-        }
+        _rigidBodies[i].cleanUp();
     }
     _rigidBodies.clear();
 }
 
-void CharacterController::CharacterDetailCollisions::update() {
+void CharacterController::CharacterDetailedCollisions::update() {
     if (_world) {
         for (int i = 0; i < _rigidBodies.size(); i++) {
             if (hasRigidBody(i)) {
-                _world->addCollisionObject(_rigidBodies[i], BULLET_COLLISION_GROUP_KINEMATIC, (BULLET_COLLISION_MASK_DYNAMIC & ~BULLET_COLLISION_GROUP_KINEMATIC));
+                _world->addCollisionObject(_rigidBodies[i]._rigidBody, BULLET_COLLISION_GROUP_KINEMATIC, (BULLET_COLLISION_MASK_DYNAMIC & ~BULLET_COLLISION_GROUP_KINEMATIC));
             }
         }
     }
 }
 
-void CharacterController::CharacterDetailCollisions::addRigidBody(std::vector<btVector3>& points) {
-    btCollisionObject* collisionObject = nullptr;
+void CharacterController::CharacterDetailedCollisions::addRigidBody(std::vector<btVector3>& points) {
+    btRigidBody* rigidBody = nullptr;
     if (points.size() > 5 && points.size() < 125) {
-        collisionObject = new btCollisionObject();
-        btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(points.data()), (int)points.size());
-        shape->setMargin(DETAILED_COLLISION_RADIUS);
-        collisionObject->setCollisionShape(shape);
-    } 
-    _rigidBodies.push_back(collisionObject);
+        _rigidBodies.push_back(CharacterDetailedRigidBody(points));
+    } else {
+        _rigidBodies.push_back(CharacterDetailedRigidBody());
+    }
 }
 
 CharacterController::CharacterController() {

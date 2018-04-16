@@ -44,6 +44,7 @@ public:
 
     void setDensity(btScalar density) { _density = density; }
     std::vector<std::vector<glm::vec3>> getWorldCollisionShapes() const { return _worldCollisionShapes; };
+    std::vector<btTransform> getWorldCollisionTransforms() const;
 
 protected:
     void initRayShotgun(const btCollisionWorld* world);

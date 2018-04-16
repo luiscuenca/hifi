@@ -106,6 +106,18 @@ void MyCharacterController::updateShapeIfNecessary() {
     }
 }
 
+std::vector<btTransform> MyCharacterController::getWorldCollisionTransforms() const {
+    std::vector<btTransform> transforms;
+    for (int i = 0; i < _detailedCollisions._rigidBodies.size(); i++) {
+        if (_detailedCollisions._rigidBodies[i]._rigidBody) {
+            transforms.push_back(_detailedCollisions._rigidBodies[i]._rigidBody->getWorldTransform());
+        } else {
+            transforms.push_back(btTransform());
+        }
+    }
+    return transforms;
+}
+
 void MyCharacterController::updateDetailedCollisions() {
     const Rig& rig = _avatar->getSkeletonModel()->getRig();
     for (int32_t i = 0; i < rig.getJointStateCount(); i++) {

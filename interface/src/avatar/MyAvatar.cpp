@@ -2026,13 +2026,19 @@ void MyAvatar::postUpdate(float deltaTime, const render::ScenePointer& scene) {
         
         if (_skeletonModel && _skeletonModel->isLoaded()) {
             const std::vector<std::vector<glm::vec3>> shapes = _characterController.getWorldCollisionShapes();
+            const std::vector<btTransform> transforms = _characterController.getWorldCollisionTransforms();
             if (shapes.size() > 0) {
                 for (int i = 0; i < shapes.size(); i++) {
                     auto shape = shapes[i];
                     if (shape.size() > 0) {
+                        btTransform trans = transforms[i];
+                        glm::vec3 position = bulletToGLM(trans.getOrigin());
+                        glm::quat rotation = bulletToGLM(trans.getRotation());
                         for (size_t j = 0; j < shape.size() / 2; j++) {
-                            glm::vec3 pointA = jointToWorldPoint(shape[2 * j], i);
-                            glm::vec3 pointB = jointToWorldPoint(shape[2 * j + 1], i);
+                            //glm::vec3 pointA = jointToWorldPoint(shape[2 * j], i);
+                            //glm::vec3 pointB = jointToWorldPoint(shape[2 * j + 1], i);
+                            glm::vec3 pointA = position + (rotation * shape[2 * j]);
+                            glm::vec3 pointB = position + (rotation * shape[2 * j + 1]);
                             DebugDraw::getInstance().drawRay(pointA, pointB, DEBUG_COLORS[i % NUM_DEBUG_COLORS]);
                         }
                     }
