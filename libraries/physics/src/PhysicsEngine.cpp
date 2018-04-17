@@ -441,14 +441,19 @@ void PhysicsEngine::printPerformanceStatsToFile(const QString& filename) {
 void PhysicsEngine::doOwnershipInfection(const btCollisionObject* objectA, const btCollisionObject* objectB) {
     BT_PROFILE("ownershipInfection");
 
+
     const btCollisionObject* characterObject = _myAvatarController ? _myAvatarController->getCollisionObject() : nullptr;
 
     ObjectMotionState* motionStateA = static_cast<ObjectMotionState*>(objectA->getUserPointer());
     ObjectMotionState* motionStateB = static_cast<ObjectMotionState*>(objectB->getUserPointer());
+    
+    auto avatarFlag = btCollisionObject::CollisionFlags::CF_CHARACTER_OBJECT;
+    bool isAAvatar = objectA->getCollisionFlags() == avatarFlag;
+    bool isBAvatar = objectB->getCollisionFlags() == avatarFlag;
 
     if (motionStateB &&
         ((motionStateA && motionStateA->getSimulatorID() == Physics::getSessionUUID() && !objectA->isStaticObject()) ||
-         (objectA == characterObject))) {
+         (objectA == characterObject) || isAAvatar)) {
         // NOTE: we might own the simulation of a kinematic object (A)
         // but we don't claim ownership of kinematic objects (B) based on collisions here.
         if (!objectB->isStaticOrKinematicObject() && motionStateB->getSimulatorID() != Physics::getSessionUUID()) {
@@ -457,7 +462,7 @@ void PhysicsEngine::doOwnershipInfection(const btCollisionObject* objectA, const
         }
     } else if (motionStateA &&
                ((motionStateB && motionStateB->getSimulatorID() == Physics::getSessionUUID() && !objectB->isStaticObject()) ||
-                (objectB == characterObject))) {
+                (objectB == characterObject) || isBAvatar)) {
         // SIMILARLY: we might own the simulation of a kinematic object (B)
         // but we don't claim ownership of kinematic objects (A) based on collisions here.
         if (!objectA->isStaticOrKinematicObject() && motionStateA->getSimulatorID() != Physics::getSessionUUID()) {

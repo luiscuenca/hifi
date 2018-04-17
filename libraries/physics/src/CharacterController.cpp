@@ -67,6 +67,7 @@ CharacterController::CharacterDetailedRigidBody::CharacterDetailedRigidBody(std:
     _motionState = new btDefaultMotionState();
     _rigidBody = new btRigidBody(DETAILED_MASS_KINEMATIC, _motionState, shape);
     _rigidBody->setCollisionShape(shape);
+    _rigidBody->setCollisionFlags(btCollisionObject::CollisionFlags::CF_CHARACTER_OBJECT);
     _rigidBody->setActivationState(DISABLE_DEACTIVATION);
     _rigidBody->setSleepingThresholds(0.0, 0.0);
 }
@@ -111,7 +112,7 @@ void CharacterController::CharacterDetailedCollisions::setRigidBodyTransform(int
 }
 
 void CharacterController::CharacterDetailedCollisions::remove() {
-    for (int i = 0; i < _rigidBodies.size(); i++) {
+    for (int i = 0; i < (int)_rigidBodies.size(); i++) {
         if (hasRigidBody(i)) {
             _world->removeCollisionObject(_rigidBodies[i]._rigidBody);
         }
@@ -119,7 +120,7 @@ void CharacterController::CharacterDetailedCollisions::remove() {
 }
 
 void CharacterController::CharacterDetailedCollisions::cleanup() {
-    for (int i = 0; i < _rigidBodies.size(); i++) {
+    for (int i = 0; i < (int)_rigidBodies.size(); i++) {
         _rigidBodies[i].cleanUp();
     }
     _rigidBodies.clear();
@@ -127,7 +128,7 @@ void CharacterController::CharacterDetailedCollisions::cleanup() {
 
 void CharacterController::CharacterDetailedCollisions::update() {
     if (_world) {
-        for (int i = 0; i < _rigidBodies.size(); i++) {
+        for (int i = 0; i < (int)_rigidBodies.size(); i++) {
             if (hasRigidBody(i)) {
                 _world->addCollisionObject(_rigidBodies[i]._rigidBody, BULLET_COLLISION_GROUP_KINEMATIC, (BULLET_COLLISION_MASK_DYNAMIC & ~BULLET_COLLISION_GROUP_KINEMATIC));
             }
@@ -136,7 +137,6 @@ void CharacterController::CharacterDetailedCollisions::update() {
 }
 
 void CharacterController::CharacterDetailedCollisions::addRigidBody(std::vector<btVector3>& points) {
-    btRigidBody* rigidBody = nullptr;
     if (points.size() > 5 && points.size() < 125) {
         _rigidBodies.push_back(CharacterDetailedRigidBody(points));
     } else {

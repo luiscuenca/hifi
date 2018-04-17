@@ -2028,7 +2028,7 @@ void MyAvatar::postUpdate(float deltaTime, const render::ScenePointer& scene) {
             const std::vector<std::vector<glm::vec3>> shapes = _characterController.getWorldCollisionShapes();
             const std::vector<btTransform> transforms = _characterController.getWorldCollisionTransforms();
             if (shapes.size() > 0) {
-                for (int i = 0; i < shapes.size(); i++) {
+                for (int i = 0; i < (int)shapes.size(); i++) {
                     auto shape = shapes[i];
                     if (shape.size() > 0) {
                         btTransform trans = transforms[i];
