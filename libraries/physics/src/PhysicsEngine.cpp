@@ -446,32 +446,41 @@ void PhysicsEngine::doOwnershipInfection(const btCollisionObject* objectA, const
 
     ObjectMotionState* motionStateA = static_cast<ObjectMotionState*>(objectA->getUserPointer());
     ObjectMotionState* motionStateB = static_cast<ObjectMotionState*>(objectB->getUserPointer());
-    
+
     auto avatarFlag = btCollisionObject::CollisionFlags::CF_CHARACTER_OBJECT;
     bool isAAvatar = objectA->getCollisionFlags() == avatarFlag;
     bool isBAvatar = objectB->getCollisionFlags() == avatarFlag;
 
     if (motionStateB &&
         ((motionStateA && motionStateA->getSimulatorID() == Physics::getSessionUUID() && !objectA->isStaticObject()) ||
-         (objectA == characterObject) || isAAvatar)) {
+        (objectA == characterObject) || isAAvatar)) {
         // NOTE: we might own the simulation of a kinematic object (A)
         // but we don't claim ownership of kinematic objects (B) based on collisions here.
         if (!objectB->isStaticOrKinematicObject() && motionStateB->getSimulatorID() != Physics::getSessionUUID()) {
-            uint8_t priorityA = SCRIPT_GRAB_SIMULATION_PRIORITY + 1;
+            uint8_t priorityA = motionStateB ? motionStateB->getSimulationPriority() + 1 : SCRIPT_GRAB_SIMULATION_PRIORITY + 2;
             if (!isAAvatar) {
                 priorityA = motionStateA ? motionStateA->getSimulationPriority() : PERSONAL_SIMULATION_PRIORITY;
+                qDebug() << "Non Avatar betting at priority " << priorityA;
+            }
+            else {
+                qDebug() << "Avatar betting at priority " << priorityA;
             }
             motionStateB->bump(priorityA);
         }
-    } else if (motionStateA &&
-               ((motionStateB && motionStateB->getSimulatorID() == Physics::getSessionUUID() && !objectB->isStaticObject()) ||
-                (objectB == characterObject) || isBAvatar)) {
+    }
+    else if (motionStateA &&
+        ((motionStateB && motionStateB->getSimulatorID() == Physics::getSessionUUID() && !objectB->isStaticObject()) ||
+        (objectB == characterObject) || isBAvatar)) {
         // SIMILARLY: we might own the simulation of a kinematic object (B)
         // but we don't claim ownership of kinematic objects (A) based on collisions here.
         if (!objectA->isStaticOrKinematicObject() && motionStateA->getSimulatorID() != Physics::getSessionUUID()) {
-            uint8_t priorityB = SCRIPT_GRAB_SIMULATION_PRIORITY + 1;
+            uint8_t priorityB = motionStateA ? motionStateA->getSimulationPriority() : SCRIPT_GRAB_SIMULATION_PRIORITY + 2;
             if (!isBAvatar) {
                 priorityB = motionStateB ? motionStateB->getSimulationPriority() : PERSONAL_SIMULATION_PRIORITY;
+                qDebug() << "Non Avatar betting at priority " << priorityB;
+            }
+            else {
+                qDebug() << "Avatar betting at priority " << priorityB;
             }
             motionStateA->bump(priorityB);
         }
