@@ -22,7 +22,6 @@
 #include <NumericalConstants.h>
 #include <SettingHandle.h>
 #include <UUID.h>
-#include <PathUtils.h>
 
 #include "AddressManager.h"
 #include "NodeList.h"
@@ -38,6 +37,10 @@ Setting::Handle<QUrl> currentAddressHandle(QStringList() << ADDRESS_MANAGER_SETT
 
 bool AddressManager::isConnected() {
     return DependencyManager::get<NodeList>()->getDomainHandler().isConnected();
+}
+
+QString AddressManager::getProtocol() const {
+    return _domainURL.scheme();
 }
 
 QUrl AddressManager::currentAddress(bool domainOnly) const {
@@ -311,8 +314,7 @@ bool AddressManager::handleUrl(const QUrl& lookupUrl, LookupTrigger trigger) {
         // lookupUrl.scheme() == URL_SCHEME_HTTPS ||
         _previousLookup.clear();
         _shareablePlaceName.clear();
-        QUrl domainURL = PathUtils::expandToLocalDataAbsolutePath(lookupUrl);
-        setDomainInfo(domainURL, trigger);
+        setDomainInfo(lookupUrl, trigger);
         emit lookupResultsFinished();
         handlePath(DOMAIN_SPAWNING_POINT, LookupTrigger::Internal, false);
         return true;
@@ -768,14 +770,6 @@ bool AddressManager::setHost(const QString& host, LookupTrigger trigger, quint16
     }
 
     return false;
-}
-
-QString AddressManager::getHost() const {
-    if (isPossiblePlaceName(_domainURL.host())) {
-        return QString();
-    }
-
-    return _domainURL.host();
 }
 
 bool AddressManager::setDomainInfo(const QUrl& domainURL, LookupTrigger trigger) {
