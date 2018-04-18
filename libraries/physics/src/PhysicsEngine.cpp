@@ -457,7 +457,7 @@ void PhysicsEngine::doOwnershipInfection(const btCollisionObject* objectA, const
         // NOTE: we might own the simulation of a kinematic object (A)
         // but we don't claim ownership of kinematic objects (B) based on collisions here.
         if (!objectB->isStaticOrKinematicObject() && motionStateB->getSimulatorID() != Physics::getSessionUUID()) {
-            uint8_t priorityA = SCRIPT_GRAB_SIMULATION_PRIORITY;
+            uint8_t priorityA = SCRIPT_GRAB_SIMULATION_PRIORITY + 1;
             if (!isAAvatar) {
                 priorityA = motionStateA ? motionStateA->getSimulationPriority() : PERSONAL_SIMULATION_PRIORITY;
             }
@@ -469,7 +469,7 @@ void PhysicsEngine::doOwnershipInfection(const btCollisionObject* objectA, const
         // SIMILARLY: we might own the simulation of a kinematic object (B)
         // but we don't claim ownership of kinematic objects (A) based on collisions here.
         if (!objectA->isStaticOrKinematicObject() && motionStateA->getSimulatorID() != Physics::getSessionUUID()) {
-            uint8_t priorityB = SCRIPT_GRAB_SIMULATION_PRIORITY;
+            uint8_t priorityB = SCRIPT_GRAB_SIMULATION_PRIORITY + 1;
             if (!isBAvatar) {
                 priorityB = motionStateB ? motionStateB->getSimulationPriority() : PERSONAL_SIMULATION_PRIORITY;
             }
