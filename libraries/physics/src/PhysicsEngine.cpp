@@ -457,13 +457,9 @@ void PhysicsEngine::doOwnershipInfection(const btCollisionObject* objectA, const
         // NOTE: we might own the simulation of a kinematic object (A)
         // but we don't claim ownership of kinematic objects (B) based on collisions here.
         if (!objectB->isStaticOrKinematicObject() && motionStateB->getSimulatorID() != Physics::getSessionUUID()) {
-            uint8_t priorityA = motionStateB ? motionStateB->getSimulationPriority() + 1 : SCRIPT_GRAB_SIMULATION_PRIORITY + 2;
+            uint8_t priorityA = motionStateB ? motionStateB->getSimulationPriority() + 1 : AVATAR_ENTITY_SIMULATION_PRIORITY;
             if (!isAAvatar) {
                 priorityA = motionStateA ? motionStateA->getSimulationPriority() : PERSONAL_SIMULATION_PRIORITY;
-                qDebug() << "Non Avatar betting at priority " << priorityA;
-            }
-            else {
-                qDebug() << "Avatar betting at priority " << priorityA;
             }
             motionStateB->bump(priorityA);
         }
@@ -474,13 +470,9 @@ void PhysicsEngine::doOwnershipInfection(const btCollisionObject* objectA, const
         // SIMILARLY: we might own the simulation of a kinematic object (B)
         // but we don't claim ownership of kinematic objects (A) based on collisions here.
         if (!objectA->isStaticOrKinematicObject() && motionStateA->getSimulatorID() != Physics::getSessionUUID()) {
-            uint8_t priorityB = motionStateA ? motionStateA->getSimulationPriority() : SCRIPT_GRAB_SIMULATION_PRIORITY + 2;
+            uint8_t priorityB = motionStateA ? motionStateA->getSimulationPriority() + 1 : AVATAR_ENTITY_SIMULATION_PRIORITY;
             if (!isBAvatar) {
                 priorityB = motionStateB ? motionStateB->getSimulationPriority() : PERSONAL_SIMULATION_PRIORITY;
-                qDebug() << "Non Avatar betting at priority " << priorityB;
-            }
-            else {
-                qDebug() << "Avatar betting at priority " << priorityB;
             }
             motionStateA->bump(priorityB);
         }
