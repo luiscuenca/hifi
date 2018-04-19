@@ -293,6 +293,7 @@ void PhysicsEngine::stepSimulation() {
     float dt = 1.0e-6f * (float)(_clock.getTimeMicroseconds());
     _clock.reset();
     float timeStep = btMin(dt, MAX_TIMESTEP);
+    _isAvatarColliding = false;
 
     if (_myAvatarController) {
         DETAILED_PROFILE_RANGE(simulation_physics, "avatarController");
@@ -457,24 +458,34 @@ void PhysicsEngine::doOwnershipInfection(const btCollisionObject* objectA, const
         // NOTE: we might own the simulation of a kinematic object (A)
         // but we don't claim ownership of kinematic objects (B) based on collisions here.
         if (!objectB->isStaticOrKinematicObject() && motionStateB->getSimulatorID() != Physics::getSessionUUID()) {
-            uint8_t priorityA = motionStateB ? motionStateB->getSimulationPriority() + 1 : AVATAR_ENTITY_SIMULATION_PRIORITY;
-            if (!isAAvatar) {
+            uint8_t priorityA = 0;
+            if (isAAvatar && !_isAvatarColliding) {
+                priorityA = motionStateB ? motionStateB->getSimulationPriority() + 1 : AVATAR_ENTITY_SIMULATION_PRIORITY;
+                _isAvatarColliding = true;
+                motionStateB->bump(priorityA);
+                qDebug("Avatar Collision A");
+            } else {
                 priorityA = motionStateA ? motionStateA->getSimulationPriority() : PERSONAL_SIMULATION_PRIORITY;
+                motionStateB->bump(priorityA);
             }
-            motionStateB->bump(priorityA);
+            
         }
-    }
-    else if (motionStateA &&
+    } else if (motionStateA &&
         ((motionStateB && motionStateB->getSimulatorID() == Physics::getSessionUUID() && !objectB->isStaticObject()) ||
         (objectB == characterObject) || isBAvatar)) {
         // SIMILARLY: we might own the simulation of a kinematic object (B)
         // but we don't claim ownership of kinematic objects (A) based on collisions here.
         if (!objectA->isStaticOrKinematicObject() && motionStateA->getSimulatorID() != Physics::getSessionUUID()) {
-            uint8_t priorityB = motionStateA ? motionStateA->getSimulationPriority() + 1 : AVATAR_ENTITY_SIMULATION_PRIORITY;
-            if (!isBAvatar) {
+            uint8_t priorityB = 0;
+            if (isBAvatar && !_isAvatarColliding) {
+                priorityB = motionStateA ? motionStateA->getSimulationPriority() + 1 : AVATAR_ENTITY_SIMULATION_PRIORITY;
+                _isAvatarColliding = true;
+                motionStateA->bump(priorityB);
+                qDebug("Avatar Collision B");
+            } else {
                 priorityB = motionStateB ? motionStateB->getSimulationPriority() : PERSONAL_SIMULATION_PRIORITY;
+                motionStateA->bump(priorityB);
             }
-            motionStateA->bump(priorityB);
         }
     }
 }

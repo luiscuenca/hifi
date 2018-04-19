@@ -125,6 +125,7 @@ private:
     glm::vec3 _originOffset;
 
     CharacterController* _myAvatarController;
+    bool _isAvatarColliding { false };
 
     uint32_t _numContactFrames = 0;
     uint32_t _numSubsteps;
