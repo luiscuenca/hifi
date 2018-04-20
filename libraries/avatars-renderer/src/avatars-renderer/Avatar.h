@@ -195,6 +195,7 @@ public:
     virtual void rebuildCollisionShape();
 
     virtual void computeShapeInfo(ShapeInfo& shapeInfo);
+    virtual void computeShapeInfo(int jointIndex, ShapeInfo& shapeInfo);
     void getCapsule(glm::vec3& start, glm::vec3& end, float& radius);
     float computeMass();
 

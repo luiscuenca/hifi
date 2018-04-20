@@ -1490,6 +1490,22 @@ void Avatar::computeShapeInfo(ShapeInfo& shapeInfo) {
     shapeInfo.setOffset(uniformScale * _skeletonModel->getBoundingCapsuleOffset());
 }
 
+void Avatar::computeShapeInfo(int jointIndex, ShapeInfo& shapeInfo) {
+    
+    const Rig& rig = _skeletonModel->getRig();
+    const FBXGeometry& geometry = _skeletonModel->getFBXGeometry();
+    
+    shapeInfo.setParams(ShapeType::SHAPE_TYPE_SIMPLE_HULL, glm::vec3());
+    const FBXJointShapeInfo& jointShapeInfo = geometry.joints[jointIndex].shapeInfo;
+    QVector<QVector<glm::vec3>> points;
+    points.push_back(QVector<glm::vec3>());
+    for (int32_t j = 0; j < jointShapeInfo.debugLines.size(); j++) {
+        const glm::vec3 &point = jointShapeInfo.debugLines[j];
+        points[0].push_back(point);
+    }
+    shapeInfo.setPointCollection(points);
+}
+
 void Avatar::getCapsule(glm::vec3& start, glm::vec3& end, float& radius) {
     ShapeInfo shapeInfo;
     computeShapeInfo(shapeInfo);

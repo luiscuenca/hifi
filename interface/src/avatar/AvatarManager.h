@@ -25,6 +25,7 @@
 #include <AudioInjector.h>
 
 #include "AvatarMotionState.h"
+#include "AvatarJointMotionState.h"
 #include "MyAvatar.h"
 
 
@@ -98,8 +99,8 @@ private:
 
     QVector<AvatarSharedPointer> _avatarsToFade;
 
-    using AvatarMotionStateMap = QMap<Avatar*, AvatarMotionState*>;
-    AvatarMotionStateMap _motionStates;
+    using AvatarJointMotionStateMap = QMap<Avatar*, AvatarJointMotionState*>;
+    AvatarJointMotionStateMap _motionStates;
     VectorOfMotionStates _motionStatesToRemoveFromPhysics;
     VectorOfMotionStates _motionStatesToDelete;
     SetOfMotionStates _motionStatesToAddToPhysics;

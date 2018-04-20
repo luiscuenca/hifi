@@ -198,15 +198,29 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
             avatar->ensureInScene(avatar, qApp->getMain3DScene());
         }
         if (!avatar->isInPhysicsSimulation()) {
-            ShapeInfo shapeInfo;
-            avatar->computeShapeInfo(shapeInfo);
-            btCollisionShape* shape = const_cast<btCollisionShape*>(ObjectMotionState::getShapeManager()->getShape(shapeInfo));
-            if (shape) {
-                AvatarMotionState* motionState = new AvatarMotionState(avatar, shape);
-                motionState->setMass(avatar->computeMass());
-                avatar->setPhysicsCallback([=] (uint32_t flags) { motionState->addDirtyFlags(flags); });
-                _motionStates.insert(avatar.get(), motionState);
-                _motionStatesToAddToPhysics.insert(motionState);
+            /*
+                ShapeInfo shapeInfo;
+                avatar->computeShapeInfo(shapeInfo);
+                btCollisionShape* shape = const_cast<btCollisionShape*>(ObjectMotionState::getShapeManager()->getShape(shapeInfo));
+                if (shape) {
+                    AvatarMotionState* motionState = new AvatarMotionState(avatar, shape);
+                    motionState->setMass(avatar->computeMass());
+                    avatar->setPhysicsCallback([=] (uint32_t flags) { motionState->addDirtyFlags(flags); });
+                    _motionStates.insert(avatar.get(), motionState);
+                    _motionStatesToAddToPhysics.insert(motionState);
+                }
+            */
+            for (int i = 0; i < avatar->getJointCount(); i++) {
+                ShapeInfo shapeInfo;
+                avatar->computeShapeInfo(i, shapeInfo);
+                btCollisionShape* shape = const_cast<btCollisionShape*>(ObjectMotionState::getShapeManager()->getShape(shapeInfo));
+                if (shape) {
+                    AvatarJointMotionState* motionState = new AvatarJointMotionState(avatar, i, shape);
+                    motionState->setMass(1.0f);
+                    avatar->setPhysicsCallback([=](uint32_t flags) { motionState->addDirtyFlags(flags); });
+                    _motionStates.insert(avatar.get(), motionState);
+                    _motionStatesToAddToPhysics.insert(motionState);
+                }
             }
         }
         avatar->animateScaleChanges(deltaTime);
@@ -320,9 +334,9 @@ void AvatarManager::handleRemovedAvatar(const AvatarSharedPointer& removedAvatar
     // remove from physics
     auto avatar = std::static_pointer_cast<Avatar>(removedAvatar);
     avatar->setPhysicsCallback(nullptr);
-    AvatarMotionStateMap::iterator itr = _motionStates.find(avatar.get());
+    AvatarJointMotionStateMap::iterator itr = _motionStates.find(avatar.get());
     if (itr != _motionStates.end()) {
-        AvatarMotionState* motionState = *itr;
+        AvatarJointMotionState* motionState = *itr;
         _motionStatesToAddToPhysics.remove(motionState);
         _motionStatesToRemoveFromPhysics.push_back(motionState);
         _motionStates.erase(itr);
@@ -401,7 +415,7 @@ void AvatarManager::getObjectsToAddToPhysics(VectorOfMotionStates& result) {
 
 void AvatarManager::getObjectsToChange(VectorOfMotionStates& result) {
     result.clear();
-    AvatarMotionStateMap::iterator motionStateItr = _motionStates.begin();
+    AvatarJointMotionStateMap::iterator motionStateItr = _motionStates.begin();
     while (motionStateItr != _motionStates.end()) {
         if ((*motionStateItr)->getIncomingDirtyFlags() != 0) {
             result.push_back(*motionStateItr);
