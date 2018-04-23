@@ -47,6 +47,40 @@ const btScalar MIN_CHARACTER_MOTOR_TIMESCALE = 0.05f;
 class CharacterController : public btCharacterControllerInterface {
 
 public:
+    struct CharacterDetailedRigidBody {
+        const float DETAILED_COLLISION_RADIUS = 0.003f;
+        const float DETAILED_MASS_KINEMATIC = 1.0f;
+        const float LINEAR_VELOCITY_MULTIPLIER = 100.0f;
+
+        CharacterDetailedRigidBody() { _rigidBody = nullptr; };
+        CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints);
+
+        void setTransform(btTransform& transform);
+        void cleanUp();
+
+        int physicsStep{ 0 };
+
+        btVector3  _position;
+        btVector3 _previusPosition;
+        btQuaternion _rotation;
+        btRigidBody* _rigidBody{ nullptr };
+        btDefaultMotionState* _motionState{ nullptr };
+    };
+
+    struct CharacterDetailedCollisions {
+        void setDynamicsWorld(btDynamicsWorld* world);
+        void addRigidBody(std::vector<btVector3>& points);
+        void setRigidBodyTransform(int jointIndex, glm::quat& rotation, glm::vec3& position);
+        void setRigidBodyTransform(int jointIndex, btTransform& transform);
+        void update();
+        void remove();
+        void cleanup();
+        bool hasRigidBody(int jointIndex);
+
+        std::vector<CharacterDetailedRigidBody> _rigidBodies;
+        btDynamicsWorld* _world{ nullptr };
+    };
+
     CharacterController();
     virtual ~CharacterController();
     bool needsRemoval() const;
@@ -141,6 +175,7 @@ protected:
     void updateCurrentGravity();
     void updateUpAxis(const glm::quat& rotation);
     bool checkForSupport(btCollisionWorld* collisionWorld);
+    void updatePhysicsState();
 
 protected:
     struct CharacterMotor {
@@ -150,39 +185,6 @@ protected:
         btQuaternion rotation; // local-to-world
         btScalar hTimescale { MAX_CHARACTER_MOTOR_TIMESCALE }; // horizontal
         btScalar vTimescale { MAX_CHARACTER_MOTOR_TIMESCALE }; // vertical
-    };
-
-    struct CharacterDetailedRigidBody {
-        const float DETAILED_COLLISION_RADIUS = 0.003f;
-        const float DETAILED_MASS_KINEMATIC = 1.0f;
-        const float LINEAR_VELOCITY_MULTIPLIER = 100.0f;
-
-        CharacterDetailedRigidBody() { _rigidBody = nullptr; };
-        CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints);
-
-        void setTransform(btQuaternion& rotation, btVector3& position);
-        void cleanUp();
-
-        int physicsStep { 0 };
-
-        btVector3  _position;
-        btVector3 _previusPosition;
-        btQuaternion _rotation;
-        btRigidBody* _rigidBody { nullptr };
-        btDefaultMotionState* _motionState { nullptr };
-    };
-
-    struct CharacterDetailedCollisions {
-        void setDynamicsWorld(btDynamicsWorld* world);
-        void addRigidBody(std::vector<btVector3>& points);
-        void setRigidBodyTransform(int jointIndex, glm::quat& rotation, glm::vec3& position);
-        void update();
-        void remove();
-        void cleanup();
-        bool hasRigidBody(int jointIndex);
-
-        std::vector<CharacterDetailedRigidBody> _rigidBodies;
-        btDynamicsWorld* _world { nullptr };
     };
 
     std::vector<CharacterMotor> _motors;
@@ -241,6 +243,7 @@ protected:
     uint32_t _pendingFlags { 0 };
     uint32_t _previousFlags { 0 };
     CharacterDetailedCollisions _detailedCollisions;
+    std::map<QUuid, CharacterDetailedCollisions> _otherCharactersDetailedCollisions;
 
     bool _flyingAllowed { true };
     bool _collisionlessAllowed { true };

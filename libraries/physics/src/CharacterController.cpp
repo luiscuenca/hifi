@@ -87,14 +87,13 @@ void CharacterController::CharacterDetailedRigidBody::cleanUp() {
     }
 }
 
-void CharacterController::CharacterDetailedRigidBody::setTransform(btQuaternion& rotation, btVector3& position) {
-    _rotation = rotation;
-    _position = position;
-    btTransform trans = btTransform(_rotation, _position);
+void CharacterController::CharacterDetailedRigidBody::setTransform(btTransform& transform) {
+    _rotation = transform.getRotation();
+    _position = transform.getOrigin();
     btTransform lastTransform = _rigidBody->getWorldTransform();
-    btVector3 velocity = trans.getOrigin() - lastTransform.getOrigin();
+    btVector3 velocity = transform.getOrigin() - lastTransform.getOrigin();
     _rigidBody->setLinearVelocity(LINEAR_VELOCITY_MULTIPLIER * velocity);
-    _rigidBody->setWorldTransform(trans);
+    _rigidBody->setWorldTransform(transform);
 }
 
 void CharacterController::CharacterDetailedCollisions::setDynamicsWorld(btDynamicsWorld* world) {
@@ -107,7 +106,14 @@ bool CharacterController::CharacterDetailedCollisions::hasRigidBody(int jointInd
 
 void CharacterController::CharacterDetailedCollisions::setRigidBodyTransform(int jointIndex, glm::quat& rotation, glm::vec3& position) {
     if (hasRigidBody(jointIndex)) {
-        _rigidBodies[jointIndex].setTransform(glmToBullet(rotation), glmToBullet(position));
+        btTransform transform = btTransform(glmToBullet(rotation), glmToBullet(position));
+        _rigidBodies[jointIndex].setTransform(transform);
+    }
+}
+
+void CharacterController::CharacterDetailedCollisions::setRigidBodyTransform(int jointIndex, btTransform& transform) {
+    if (hasRigidBody(jointIndex)) {
+        _rigidBodies[jointIndex].setTransform(transform);
     }
 }
 
@@ -174,6 +180,21 @@ CharacterController::~CharacterController() {
         _rigidBody = nullptr;
     }
     _detailedCollisions.cleanup();
+    auto itr = _otherCharactersDetailedCollisions.begin();
+    while (itr != _otherCharactersDetailedCollisions.end()) {
+        itr->second.cleanup();
+        ++itr;
+    }
+}
+
+void CharacterController::updatePhysicsState() {
+    if (_dynamicsWorld) {
+        auto itr = _otherCharactersDetailedCollisions.begin();
+        while (itr != _otherCharactersDetailedCollisions.end()) {
+            itr->second.setDynamicsWorld(_dynamicsWorld);
+            ++itr;
+        }
+    }
 }
 
 bool CharacterController::needsRemoval() const {
@@ -189,6 +210,11 @@ void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
         // remove from old world
         if (_dynamicsWorld) {
             _detailedCollisions.remove();
+            auto itr = _otherCharactersDetailedCollisions.begin();
+            while (itr != _otherCharactersDetailedCollisions.end()) {
+                itr->second.remove();
+                ++itr;
+            }
             if (_rigidBody) {
                 _dynamicsWorld->removeRigidBody(_rigidBody);
                 _dynamicsWorld->removeAction(this);
@@ -216,6 +242,12 @@ void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
         if (world) {
             _detailedCollisions.setDynamicsWorld(world);
             _detailedCollisions.update();
+            auto itr = _otherCharactersDetailedCollisions.begin();
+            while (itr != _otherCharactersDetailedCollisions.end()) {
+                itr->second.setDynamicsWorld(world);
+                itr->second.update();
+                ++itr;
+            }
         }
 
         _ghost.setCollisionGroupAndMask(collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR & (~ collisionGroup));

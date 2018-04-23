@@ -198,6 +198,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
             avatar->ensureInScene(avatar, qApp->getMain3DScene());
         }
         if (!avatar->isInPhysicsSimulation()) {
+            /*
             ShapeInfo shapeInfo;
             avatar->computeShapeInfo(shapeInfo);
             btCollisionShape* shape = const_cast<btCollisionShape*>(ObjectMotionState::getShapeManager()->getShape(shapeInfo));
@@ -208,7 +209,37 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
                 _motionStates.insert(avatar.get(), motionState);
                 _motionStatesToAddToPhysics.insert(motionState);
             }
+            */
         }
+        MyCharacterController* characterController = _myAvatar->getCharacterController();
+        if (!characterController->isInPhysicsSimulation(avatar->getID())) {
+            const Rig& rig = avatar->getSkeletonModel()->getRig();
+            if (avatar->getSkeletonModel()->isActive()) {
+                const FBXGeometry& geometry = avatar->getSkeletonModel()->getFBXGeometry();
+                std::vector<std::vector<btVector3>> shapes;
+                for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
+                    const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
+                    std::vector<btVector3> btPoints;
+                    for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
+                        const glm::vec3 &point = shapeInfo.debugLines[j];
+                        auto rigPoint = extractScale(rig.getGeometryToRigTransform()) * point;
+                        btVector3 btPoint = glmToBullet(rigPoint);
+                        btPoints.push_back(btPoint);
+                    }
+                    shapes.push_back(btPoints);
+                }
+                characterController->addOtherAvatarDetailedCollisions(avatar->getID(), shapes);
+            }
+        } else {
+            std::vector<btTransform> transforms;
+            for (int32_t i = 0; i < avatar->getJointCount(); i++) {
+                auto jointRotation = avatar->getWorldOrientation() * avatar->getAbsoluteJointRotationInObjectFrame(i);
+                auto jointPosition = avatar->getJointPosition(i);
+                transforms.push_back(btTransform(glmToBullet(jointRotation), glmToBullet(jointPosition)));
+            }
+            characterController->updateOtherAvatarDetailedCollisons(avatar->getID(), transforms);
+        }
+
         avatar->animateScaleChanges(deltaTime);
 
         const float OUT_OF_VIEW_THRESHOLD = 0.5f * AvatarData::OUT_OF_VIEW_PENALTY;
@@ -327,6 +358,7 @@ void AvatarManager::handleRemovedAvatar(const AvatarSharedPointer& removedAvatar
         _motionStatesToRemoveFromPhysics.push_back(motionState);
         _motionStates.erase(itr);
     }
+    _myAvatar->getCharacterController()->removeOtherAvatarDetailedCollisions(avatar->getID());
 
     if (removalReason == KillAvatarReason::TheirAvatarEnteredYourBubble) {
         emit DependencyManager::get<UsersScriptingInterface>()->enteredIgnoreRadius();

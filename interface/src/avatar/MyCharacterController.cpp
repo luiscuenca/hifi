@@ -65,6 +65,42 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
 
 }
 
+bool MyCharacterController::isInPhysicsSimulation(QUuid avatarId) {
+    auto itr = _otherCharactersDetailedCollisions.find(avatarId);
+    return (itr != _otherCharactersDetailedCollisions.end());
+}
+
+void MyCharacterController::addOtherAvatarDetailedCollisions(QUuid avatarId, std::vector<std::vector<btVector3>>& shapes) {
+    CharacterController::CharacterDetailedCollisions collisions;
+    for (int i = 0; i < shapes.size(); i++) {
+        collisions.addRigidBody(shapes[i]);
+    }
+    _otherCharactersDetailedCollisions.insert(std::pair<QUuid, CharacterController::CharacterDetailedCollisions>(avatarId, collisions));
+    updatePhysicsState();
+}
+
+void MyCharacterController::removeOtherAvatarDetailedCollisions(QUuid avatarId) {
+    auto itr = _otherCharactersDetailedCollisions.find(avatarId);
+    if (itr != _otherCharactersDetailedCollisions.end()) {
+        itr->second.remove();
+        itr->second.cleanup();
+        _otherCharactersDetailedCollisions.erase(itr);
+    }
+}
+
+void MyCharacterController::updateOtherAvatarDetailedCollisons(QUuid avatarId, std::vector<btTransform>& transforms) {
+    auto itr = _otherCharactersDetailedCollisions.find(avatarId);
+    if (itr != _otherCharactersDetailedCollisions.end()) {
+        auto collision = &itr->second;
+        assert(transforms.size() == collision->_rigidBodies.size());
+        for (int i = 0; i < transforms.size(); i++) {
+            auto transform = transforms[i];
+            collision->setRigidBodyTransform(i, transform);
+        }
+    }
+}
+
+
 void MyCharacterController::updateShapeIfNecessary() {
     if (_pendingFlags & PENDING_FLAG_UPDATE_SHAPE) {
         _pendingFlags &= ~PENDING_FLAG_UPDATE_SHAPE;

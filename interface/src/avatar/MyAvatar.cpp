@@ -2866,6 +2866,8 @@ void MyAvatar::setWalkSpeed(float value) {
     _walkSpeed.set(value);
 }
 
+
+
 glm::vec3 MyAvatar::getPositionForAudio() {
     glm::vec3 result;
     switch (_audioListenerMode) {

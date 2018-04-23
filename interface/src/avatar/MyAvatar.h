@@ -594,6 +594,8 @@ public:
     void setWalkSpeed(float value);
     float getWalkSpeed() const;
 
+
+
 public slots:
     void increaseSize();
     void decreaseSize();

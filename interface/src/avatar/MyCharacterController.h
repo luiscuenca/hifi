@@ -46,6 +46,11 @@ public:
     std::vector<std::vector<glm::vec3>> getWorldCollisionShapes() const { return _worldCollisionShapes; };
     std::vector<btTransform> getWorldCollisionTransforms() const;
 
+    bool isInPhysicsSimulation(QUuid avatarId);
+    void addOtherAvatarDetailedCollisions(QUuid avatarId, std::vector<std::vector<btVector3>>& shapes);
+    void removeOtherAvatarDetailedCollisions(QUuid avatarId);
+    void updateOtherAvatarDetailedCollisons(QUuid avatarId, std::vector<btTransform>& transforms);
+
 protected:
     void initRayShotgun(const btCollisionWorld* world);
     void updateMassProperties() override;
