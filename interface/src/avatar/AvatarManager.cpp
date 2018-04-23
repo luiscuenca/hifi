@@ -217,7 +217,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
             if (avatar->getSkeletonModel()->isActive()) {
                 const FBXGeometry& geometry = avatar->getSkeletonModel()->getFBXGeometry();
                 std::vector<std::vector<btVector3>> shapes;
-                for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
+                for (int32_t i = 0; i < avatar->getJointCount(); i++) {
                     const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
                     std::vector<btVector3> btPoints;
                     for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
