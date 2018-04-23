@@ -18,6 +18,7 @@
 
 class PhysicsDebugDraw : public btIDebugDraw {
 public:
+    using btIDebugDraw::drawLine;
     virtual void drawLine(const btVector3& from, const btVector3& to, const btVector3& color) override;
     virtual void drawContactPoint(const btVector3& PointOnB, const btVector3& normalOnB, btScalar distance,
                                   int lifeTime, const btVector3& color) override;
