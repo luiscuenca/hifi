@@ -14,7 +14,7 @@
 #include "PhysicsLogging.h"
 
 #include <DebugDraw.h>
-#include <glmHelpers.h>
+#include <GLMHelpers.h>
 
 void PhysicsDebugDraw::drawLine(const btVector3& from, const btVector3& to, const btVector3& color) {
     DebugDraw::getInstance().drawRay(bulletToGLM(from), bulletToGLM(to), glm::vec4(color.getX(), color.getY(), color.getZ(), 1.0f));
