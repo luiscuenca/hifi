@@ -58,13 +58,11 @@ public:
         void setTransform(btTransform& transform);
         void cleanUp();
 
-        int physicsStep{ 0 };
-
         btVector3  _position;
         btVector3 _previusPosition;
         btQuaternion _rotation;
-        btRigidBody* _rigidBody{ nullptr };
-        btDefaultMotionState* _motionState{ nullptr };
+        btRigidBody* _rigidBody { nullptr };
+        btDefaultMotionState* _motionState { nullptr };
     };
 
     struct CharacterDetailedCollisions {
@@ -78,7 +76,8 @@ public:
         bool hasRigidBody(int jointIndex);
 
         std::vector<CharacterDetailedRigidBody> _rigidBodies;
-        btDynamicsWorld* _world{ nullptr };
+        btDynamicsWorld* _world { nullptr };
+        bool _updated { false };
     };
 
     CharacterController();

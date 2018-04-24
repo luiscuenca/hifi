@@ -98,6 +98,9 @@ void CharacterController::CharacterDetailedRigidBody::setTransform(btTransform& 
 
 void CharacterController::CharacterDetailedCollisions::setDynamicsWorld(btDynamicsWorld* world) {
     _world = world;
+    if (!_updated) {
+        update();
+    }
 }
 
 bool CharacterController::CharacterDetailedCollisions::hasRigidBody(int jointIndex) {
@@ -139,6 +142,7 @@ void CharacterController::CharacterDetailedCollisions::update() {
                 _world->addCollisionObject(_rigidBodies[i]._rigidBody, BULLET_COLLISION_GROUP_KINEMATIC, (BULLET_COLLISION_MASK_DYNAMIC & ~BULLET_COLLISION_GROUP_KINEMATIC));
             }
         }
+        _updated = true;
     }
 }
 
@@ -241,11 +245,9 @@ void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
         }
         if (world) {
             _detailedCollisions.setDynamicsWorld(world);
-            _detailedCollisions.update();
             auto itr = _otherCharactersDetailedCollisions.begin();
             while (itr != _otherCharactersDetailedCollisions.end()) {
                 itr->second.setDynamicsWorld(world);
-                itr->second.update();
                 ++itr;
             }
         }
