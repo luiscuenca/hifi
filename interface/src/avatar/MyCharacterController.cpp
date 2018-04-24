@@ -43,6 +43,7 @@ void MyCharacterController::setDynamicsWorld(btDynamicsWorld* world) {
 
 void MyCharacterController::updateDetailedCollisionsShapes() {
     const Rig& rig = _avatar->getSkeletonModel()->getRig();
+    auto scale = extractScale(rig.getGeometryToRigTransform());
     if (_avatar->getSkeletonModel()->isActive()) {
         const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
         _detailedCollisions.cleanup();
@@ -54,7 +55,7 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
             _worldCollisionShapes.push_back(std::vector<glm::vec3>());
             for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
                 const glm::vec3 &point = shapeInfo.debugLines[j];
-                auto rigPoint = extractScale(rig.getGeometryToRigTransform()) * point;
+                auto rigPoint = scale * point;
                 _worldCollisionShapes[i].push_back(rigPoint);
                 btVector3 btPoint = glmToBullet(rigPoint);
                 btPoints.push_back(btPoint);

@@ -207,6 +207,8 @@ public:
 
     const glm::mat4& getGeometryToRigTransform() const { return _geometryToRigTransform; }
 
+    const glm::vec3& getGeometryScale() const { return _geometryScale; }
+
     const AnimPose& getModelOffsetPose() const { return _modelOffset; }
     const AnimPose& getGeometryOffsetPose() const { return _geometryOffset; }
 
@@ -283,6 +285,8 @@ protected:
     glm::vec3 _lastForward;
     glm::vec3 _lastPosition;
     glm::vec3 _lastVelocity;
+
+    glm::vec3 _geometryScale;
 
     QUrl _animGraphURL;
     std::shared_ptr<AnimNode> _animNode;

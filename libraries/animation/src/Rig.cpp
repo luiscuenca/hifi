@@ -210,6 +210,8 @@ void Rig::initJointStates(const FBXGeometry& geometry, const glm::mat4& modelOff
     _rigToGeometryTransform = glm::inverse(_geometryToRigTransform);
     setModelOffset(modelOffset);
 
+    _geometryScale = _geometryOffset.scale();
+
     _animSkeleton = std::make_shared<AnimSkeleton>(geometry);
 
     _internalPoseSet._relativePoses.clear();

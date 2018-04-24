@@ -214,6 +214,8 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
         MyCharacterController* characterController = _myAvatar->getCharacterController();
         if (!characterController->isInPhysicsSimulation(avatar->getID())) {
             const Rig& rig = avatar->getSkeletonModel()->getRig();
+            auto scale2 = extractScale(rig.getGeometryToRigTransform());
+            auto scale = glm::vec3(0.01f, 0.01f, 0.01f);
             if (avatar->getSkeletonModel()->isActive()) {
                 const FBXGeometry& geometry = avatar->getSkeletonModel()->getFBXGeometry();
                 std::vector<std::vector<btVector3>> shapes;
@@ -222,7 +224,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
                     std::vector<btVector3> btPoints;
                     for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
                         const glm::vec3 &point = shapeInfo.debugLines[j];
-                        auto rigPoint = extractScale(rig.getGeometryToRigTransform()) * point;
+                        auto rigPoint = scale * point;
                         btVector3 btPoint = glmToBullet(rigPoint);
                         btPoints.push_back(btPoint);
                     }
