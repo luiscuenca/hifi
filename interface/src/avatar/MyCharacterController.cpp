@@ -48,7 +48,6 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
         const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
         _detailedCollisions.cleanup();
         _worldCollisionShapes.clear();
-
         for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
             const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
             std::vector<btVector3> btPoints;
@@ -63,7 +62,6 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
             _detailedCollisions.addRigidBody(btPoints);
         }
     }
-
 }
 
 bool MyCharacterController::isInPhysicsSimulation(QUuid avatarId) {
@@ -89,14 +87,14 @@ void MyCharacterController::removeOtherAvatarDetailedCollisions(QUuid avatarId) 
     }
 }
 
-void MyCharacterController::updateOtherAvatarDetailedCollisons(QUuid avatarId, std::vector<btTransform>& transforms) {
+void MyCharacterController::updateOtherAvatarDetailedCollisons(float deltaTime, QUuid avatarId, std::vector<btTransform>& transforms) {
     auto itr = _otherCharactersDetailedCollisions.find(avatarId);
     if (itr != _otherCharactersDetailedCollisions.end()) {
         auto collision = &itr->second;
         assert(transforms.size() == collision->_rigidBodies.size());
         for (int i = 0; i < transforms.size(); i++) {
             auto transform = transforms[i];
-            collision->setRigidBodyTransform(i, transform);
+            collision->setRigidBodyTransform(deltaTime, i, transform);
         }
     }
 }
@@ -155,13 +153,14 @@ std::vector<btTransform> MyCharacterController::getWorldCollisionTransforms() co
     return transforms;
 }
 
-void MyCharacterController::updateDetailedCollisions() {
+void MyCharacterController::updateDetailedCollisions(float deltaTime) {
     const Rig& rig = _avatar->getSkeletonModel()->getRig();
     for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
         if (_detailedCollisions.hasRigidBody(i)) {
             auto jointRotation = _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
             auto jointPosition = _avatar->getJointPosition(i);
-            _detailedCollisions.setRigidBodyTransform(i, jointRotation, jointPosition);
+            _detailedCollisions.setRigidBodyTransform(deltaTime, i, jointRotation, jointPosition);
+            
         }
     }
 }

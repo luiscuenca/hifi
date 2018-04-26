@@ -239,7 +239,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
                 auto jointPosition = avatar->getJointPosition(i);
                 transforms.push_back(btTransform(glmToBullet(jointRotation), glmToBullet(jointPosition)));
             }
-            characterController->updateOtherAvatarDetailedCollisons(avatar->getID(), transforms);
+            characterController->updateOtherAvatarDetailedCollisons(deltaTime, avatar->getID(), transforms);
         }
 
         avatar->animateScaleChanges(deltaTime);

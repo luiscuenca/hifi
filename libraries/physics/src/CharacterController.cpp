@@ -87,12 +87,22 @@ void CharacterController::CharacterDetailedRigidBody::cleanUp() {
     }
 }
 
-void CharacterController::CharacterDetailedRigidBody::setTransform(btTransform& transform) {
+
+void CharacterController::CharacterDetailedRigidBody::setTransform(float deltaTime, btTransform& transform) {
     _rotation = transform.getRotation();
     _position = transform.getOrigin();
     btTransform lastTransform = _rigidBody->getWorldTransform();
     btVector3 velocity = transform.getOrigin() - lastTransform.getOrigin();
-    _rigidBody->setLinearVelocity(LINEAR_VELOCITY_MULTIPLIER * velocity);
+    float invDeltaTime = 1.0f / deltaTime;
+    btVector3 linearVelocity = invDeltaTime * velocity;
+
+    glm::quat orientation = bulletToGLM(transform.getRotation());
+    glm::quat lastOrientation = bulletToGLM(lastTransform.getRotation());
+    glm::quat delta = glm::inverse(lastOrientation) * orientation;
+    glm::vec3 angularVelocity = glm::axis(delta) * glm::angle(delta) * invDeltaTime;
+
+    _rigidBody->setAngularVelocity(glmToBullet(angularVelocity));
+    _rigidBody->setLinearVelocity(linearVelocity);
     _rigidBody->setWorldTransform(transform);
 }
 
@@ -107,16 +117,16 @@ bool CharacterController::CharacterDetailedCollisions::hasRigidBody(int jointInd
     return _rigidBodies.size() > jointIndex && _rigidBodies[jointIndex]._rigidBody; 
 }
 
-void CharacterController::CharacterDetailedCollisions::setRigidBodyTransform(int jointIndex, glm::quat& rotation, glm::vec3& position) {
+void CharacterController::CharacterDetailedCollisions::setRigidBodyTransform(float deltaTime, int jointIndex, glm::quat& rotation, glm::vec3& position) {
     if (hasRigidBody(jointIndex)) {
         btTransform transform = btTransform(glmToBullet(rotation), glmToBullet(position));
-        _rigidBodies[jointIndex].setTransform(transform);
+        _rigidBodies[jointIndex].setTransform(deltaTime, transform);
     }
 }
 
-void CharacterController::CharacterDetailedCollisions::setRigidBodyTransform(int jointIndex, btTransform& transform) {
+void CharacterController::CharacterDetailedCollisions::setRigidBodyTransform(float deltaTime, int jointIndex, btTransform& transform) {
     if (hasRigidBody(jointIndex)) {
-        _rigidBodies[jointIndex].setTransform(transform);
+        _rigidBodies[jointIndex].setTransform(deltaTime, transform);
     }
 }
 

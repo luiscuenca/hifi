@@ -1705,7 +1705,6 @@ void MyAvatar::prepareForPhysicsSimulation() {
     _characterController.setScaleFactor(getSensorToWorldScale());
 
     _characterController.setPositionAndOrientation(getWorldPosition(), getWorldOrientation());
-    _characterController.updateDetailedCollisions();
     auto headPose = getControllerPoseInAvatarFrame(controller::Action::HEAD);
     if (headPose.isValid()) {
         _follow.prePhysicsUpdate(*this, deriveBodyFromHMDSensor(), _bodySensorMatrix, hasDriveInput());
@@ -2187,6 +2186,8 @@ void MyAvatar::updateOrientation(float deltaTime) {
         head->setBasePitch(getHead()->getBasePitch() + getDriveKey(PITCH) * _pitchSpeed * deltaTime);
         head->setBaseRoll(0.0f);
     }
+
+    _characterController.updateDetailedCollisions(deltaTime);
 }
 
 void MyAvatar::updateActionMotor(float deltaTime) {

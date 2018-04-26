@@ -27,7 +27,7 @@ public:
     void setDynamicsWorld(btDynamicsWorld* world) override;
     void updateShapeIfNecessary() override;
 
-    void updateDetailedCollisions();
+    void updateDetailedCollisions(float deltaTime);
 
     // Sweeping a convex shape through the physics simulation can be expensive when the obstacles are too
     // complex (e.g. small 20k triangle static mesh) so instead we cast several rays forward and if they
@@ -49,7 +49,7 @@ public:
     bool isInPhysicsSimulation(QUuid avatarId);
     void addOtherAvatarDetailedCollisions(QUuid avatarId, std::vector<std::vector<btVector3>>& shapes);
     void removeOtherAvatarDetailedCollisions(QUuid avatarId);
-    void updateOtherAvatarDetailedCollisons(QUuid avatarId, std::vector<btTransform>& transforms);
+    void updateOtherAvatarDetailedCollisons(float deltaTime, QUuid avatarId, std::vector<btTransform>& transforms);
 
 protected:
     void initRayShotgun(const btCollisionWorld* world);

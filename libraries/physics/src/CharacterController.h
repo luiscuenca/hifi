@@ -55,7 +55,7 @@ public:
         CharacterDetailedRigidBody() { _rigidBody = nullptr; };
         CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints);
 
-        void setTransform(btTransform& transform);
+        void setTransform(float deltaTime, btTransform& transform);
         void cleanUp();
 
         btVector3  _position;
@@ -68,8 +68,8 @@ public:
     struct CharacterDetailedCollisions {
         void setDynamicsWorld(btDynamicsWorld* world);
         void addRigidBody(std::vector<btVector3>& points);
-        void setRigidBodyTransform(int jointIndex, glm::quat& rotation, glm::vec3& position);
-        void setRigidBodyTransform(int jointIndex, btTransform& transform);
+        void setRigidBodyTransform(float deltaTime, int jointIndex, glm::quat& rotation, glm::vec3& position);
+        void setRigidBodyTransform(float deltaTime, int jointIndex, btTransform& transform);
         void update();
         void remove();
         void cleanup();
