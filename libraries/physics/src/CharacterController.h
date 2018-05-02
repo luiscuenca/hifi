@@ -56,7 +56,7 @@ public:
         CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints);
 
         void setTransform(float deltaTime, btTransform& transform);
-        void cleanUp();
+        void cleanCollision();
 
         btVector3  _position;
         btVector3 _previusPosition;
@@ -70,9 +70,9 @@ public:
         void addRigidBody(std::vector<btVector3>& points);
         void setRigidBodyTransform(float deltaTime, int jointIndex, glm::quat& rotation, glm::vec3& position);
         void setRigidBodyTransform(float deltaTime, int jointIndex, btTransform& transform);
-        void update();
-        void remove();
-        void cleanup();
+        void updateCollisions();
+        void removeCollisions();
+        void cleanCollisions();
         bool hasRigidBody(int jointIndex);
 
         std::vector<CharacterDetailedRigidBody> _rigidBodies;

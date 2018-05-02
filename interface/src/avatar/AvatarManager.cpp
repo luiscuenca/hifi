@@ -216,7 +216,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
             const Rig& rig = avatar->getSkeletonModel()->getRig();
             auto scale2 = extractScale(rig.getGeometryToRigTransform());
             auto scale = glm::vec3(0.01f, 0.01f, 0.01f);
-            if (avatar->getSkeletonModel()->isActive()) {
+            if (avatar->getSkeletonModel()->isActive() && avatar->getJointCount() > 0) {
                 const FBXGeometry& geometry = avatar->getSkeletonModel()->getFBXGeometry();
                 std::vector<std::vector<btVector3>> shapes;
                 for (int32_t i = 0; i < avatar->getJointCount(); i++) {
@@ -231,6 +231,12 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
                     shapes.push_back(btPoints);
                 }
                 characterController->addOtherAvatarDetailedCollisions(avatar->getID(), shapes);
+                qDebug() << "Added " << shapes.size() << " shapes";
+                
+                connect(avatar.get(), &AvatarData::skeletonModelURLChanged, this, [this, avatar, characterController]() {
+                    characterController->removeOtherAvatarDetailedCollisions(avatar->getID());
+                    disconnect(avatar.get(), &AvatarData::skeletonModelURLChanged, this, nullptr);
+                });
             }
         } else {
             std::vector<btTransform> transforms;

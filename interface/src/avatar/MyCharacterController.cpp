@@ -46,7 +46,8 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
     auto scale = extractScale(rig.getGeometryToRigTransform());
     if (_avatar->getSkeletonModel()->isActive()) {
         const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
-        _detailedCollisions.cleanup();
+        _detailedCollisions.removeCollisions();
+        _detailedCollisions.cleanCollisions();
         _worldCollisionShapes.clear();
         for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
             const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
@@ -62,6 +63,7 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
             _detailedCollisions.addRigidBody(btPoints);
         }
     }
+    updatePhysicsState();
 }
 
 bool MyCharacterController::isInPhysicsSimulation(QUuid avatarId) {
@@ -81,8 +83,8 @@ void MyCharacterController::addOtherAvatarDetailedCollisions(QUuid avatarId, std
 void MyCharacterController::removeOtherAvatarDetailedCollisions(QUuid avatarId) {
     auto itr = _otherCharactersDetailedCollisions.find(avatarId);
     if (itr != _otherCharactersDetailedCollisions.end()) {
-        itr->second.remove();
-        itr->second.cleanup();
+        itr->second.removeCollisions();
+        itr->second.cleanCollisions();
         _otherCharactersDetailedCollisions.erase(itr);
     }
 }
@@ -160,7 +162,6 @@ void MyCharacterController::updateDetailedCollisions(float deltaTime) {
             auto jointRotation = _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
             auto jointPosition = _avatar->getJointPosition(i);
             _detailedCollisions.setRigidBodyTransform(deltaTime, i, jointRotation, jointPosition);
-            
         }
     }
 }

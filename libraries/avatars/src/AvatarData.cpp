@@ -1698,6 +1698,7 @@ void AvatarData::setSkeletonModelURL(const QUrl& skeletonModelURL) {
 
     updateJointMappings();
     markIdentityDataChanged();
+    emit skeletonModelURLChanged();
 }
 
 void AvatarData::setDisplayName(const QString& displayName) {
