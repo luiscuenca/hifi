@@ -41,6 +41,75 @@ void MyCharacterController::setDynamicsWorld(btDynamicsWorld* world) {
     }
 }
 
+void MyCharacterController::updateDetailedCollisionsShapes() {
+    const Rig& rig = _avatar->getSkeletonModel()->getRig();
+    auto scale = extractScale(rig.getGeometryToRigTransform());
+    if (_avatar->getSkeletonModel()->isActive()) {
+        const FBXGeometry& geometry = _avatar->getSkeletonModel()->getFBXGeometry();
+        _detailedCollisions.removeCollisions();
+        _detailedCollisions.cleanCollisions();
+        _worldCollisionShapes.clear();
+        for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
+            const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
+            std::vector<btVector3> btPoints;
+            _worldCollisionShapes.push_back(std::vector<glm::vec3>());
+            for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
+                const glm::vec3 &point = shapeInfo.debugLines[j];
+                auto rigPoint = scale * point;
+                _worldCollisionShapes[i].push_back(rigPoint);
+                btVector3 btPoint = glmToBullet(rigPoint);
+                btPoints.push_back(btPoint);
+            }
+            _detailedCollisions.addRigidBody(btPoints);
+        }
+    }
+    updatePhysicsState();
+}
+
+bool MyCharacterController::isInPhysicsSimulation(QUuid avatarId) {
+    auto itr = _otherCharactersDetailedCollisions.find(avatarId);
+    return (itr != _otherCharactersDetailedCollisions.end());
+}
+
+void MyCharacterController::addOtherAvatarDetailedCollisions(QUuid avatarId, std::vector<std::vector<btVector3>>& shapes) {
+    CharacterDetailedCollisions collisions;
+    for (int i = 0; i < shapes.size(); i++) {
+        collisions.addRigidBody(shapes[i]);
+    }
+    _otherCharactersDetailedCollisions.insert(std::pair<QUuid, CharacterDetailedCollisions>(avatarId, collisions));
+    updatePhysicsState();
+}
+
+void MyCharacterController::addOtherAvatarDetailedCollisions(QUuid avatarId, std::vector<btVector3>& bboxes, std::vector<btVector3>& offsets) {
+    CharacterDetailedCollisions collisions;
+    for (int i = 0; i < bboxes.size(); i++) {
+        collisions.addRigidBody(bboxes[i], offsets[i]);
+    }
+    _otherCharactersDetailedCollisions.insert(std::pair<QUuid, CharacterDetailedCollisions>(avatarId, collisions));
+    updatePhysicsState();
+}
+
+void MyCharacterController::removeOtherAvatarDetailedCollisions(QUuid avatarId) {
+    auto itr = _otherCharactersDetailedCollisions.find(avatarId);
+    if (itr != _otherCharactersDetailedCollisions.end()) {
+        itr->second.removeCollisions();
+        itr->second.cleanCollisions();
+        _otherCharactersDetailedCollisions.erase(itr);
+    }
+}
+
+void MyCharacterController::updateOtherAvatarDetailedCollisons(float deltaTime, QUuid avatarId, std::vector<btTransform>& transforms) {
+    auto itr = _otherCharactersDetailedCollisions.find(avatarId);
+    if (itr != _otherCharactersDetailedCollisions.end()) {
+        auto collision = &itr->second;
+        assert(transforms.size() == collision->_rigidBodies.size());
+        for (int i = 0; i < transforms.size(); i++) {
+            auto transform = transforms[i];
+            collision->setRigidBodyTransform(deltaTime, i, transform);
+        }
+    }
+}
+
 void MyCharacterController::updateShapeIfNecessary() {
     if (_pendingFlags & PENDING_FLAG_UPDATE_SHAPE) {
         _pendingFlags &= ~PENDING_FLAG_UPDATE_SHAPE;
@@ -60,6 +129,7 @@ void MyCharacterController::updateShapeIfNecessary() {
                 shape = computeShape();
                 _rigidBody->setCollisionShape(shape);
             }
+            updateDetailedCollisionsShapes();
             updateMassProperties();
 
             _rigidBody->setSleepingThresholds(0.0f, 0.0f);
@@ -76,6 +146,30 @@ void MyCharacterController::updateShapeIfNecessary() {
                     ~(btCollisionObject::CF_KINEMATIC_OBJECT | btCollisionObject::CF_STATIC_OBJECT));
         } else {
             // TODO: handle this failure case
+        }
+    }
+}
+
+std::vector<btTransform> MyCharacterController::getWorldCollisionTransforms() const {
+    std::vector<btTransform> transforms;
+    auto bodies = _detailedCollisions.getRigidBodies();
+    for (auto i = 0; i < bodies.size(); i++) {
+        if (bodies[i]._rigidBody) {
+            transforms.push_back(bodies[i]._rigidBody->getWorldTransform());
+        } else {
+            transforms.push_back(btTransform());
+        }
+    }
+    return transforms;
+}
+
+void MyCharacterController::updateDetailedCollisions(float deltaTime) {
+    const Rig& rig = _avatar->getSkeletonModel()->getRig();
+    for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
+        if (_detailedCollisions.hasRigidBody(i)) {
+            auto jointRotation = _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
+            auto jointPosition = _avatar->getJointPosition(i);
+            _detailedCollisions.setRigidBodyTransform(deltaTime, i, jointRotation, jointPosition);
         }
     }
 }

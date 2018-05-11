@@ -2179,6 +2179,7 @@ void MyAvatar::updateOrientation(float deltaTime) {
         head->setBasePitch(getHead()->getBasePitch() + getDriveKey(PITCH) * _pitchSpeed * deltaTime);
         head->setBaseRoll(0.0f);
     }
+    _characterController.updateDetailedCollisions(deltaTime);
 }
 
 void MyAvatar::updateActionMotor(float deltaTime) {

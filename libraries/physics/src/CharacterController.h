@@ -25,6 +25,7 @@
 #include "BulletUtil.h"
 #include "CharacterGhostObject.h"
 #include "AvatarConstants.h" 
+#include "CharacterDetailedCollisions.h"
 
 const uint32_t PENDING_FLAG_ADD_TO_SIMULATION = 1U << 0;
 const uint32_t PENDING_FLAG_REMOVE_FROM_SIMULATION = 1U << 1;
@@ -46,6 +47,7 @@ const btScalar MIN_CHARACTER_MOTOR_TIMESCALE = 0.05f;
 class CharacterController : public btCharacterControllerInterface {
 
 public:
+
     CharacterController();
     virtual ~CharacterController();
     bool needsRemoval() const;
@@ -140,6 +142,7 @@ protected:
     void updateCurrentGravity();
     void updateUpAxis(const glm::quat& rotation);
     bool checkForSupport(btCollisionWorld* collisionWorld);
+    void updatePhysicsState();
 
 protected:
     struct CharacterMotor {
@@ -153,6 +156,8 @@ protected:
 
     std::vector<CharacterMotor> _motors;
     CharacterGhostObject _ghost;
+    CharacterDetailedCollisions _detailedCollisions;
+    std::map<QUuid, CharacterDetailedCollisions> _otherCharactersDetailedCollisions;
     btVector3 _currentUp;
     btVector3 _targetVelocity;
     btVector3 _parentVelocity;

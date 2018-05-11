@@ -89,6 +89,23 @@ CharacterController::~CharacterController() {
         delete _rigidBody;
         _rigidBody = nullptr;
     }
+    _detailedCollisions.cleanCollisions();
+    auto itr = _otherCharactersDetailedCollisions.begin();
+    while (itr != _otherCharactersDetailedCollisions.end()) {
+        itr->second.cleanCollisions();
+        ++itr;
+    }
+}
+
+void CharacterController::updatePhysicsState() {
+    if (_dynamicsWorld) {
+        _detailedCollisions.setDynamicsWorld(_dynamicsWorld);
+        auto itr = _otherCharactersDetailedCollisions.begin();
+        while (itr != _otherCharactersDetailedCollisions.end()) {
+            itr->second.setDynamicsWorld(_dynamicsWorld);
+            ++itr;
+        }
+    }
 }
 
 bool CharacterController::needsRemoval() const {
@@ -103,6 +120,12 @@ void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
     if (_dynamicsWorld != world) {
         // remove from old world
         if (_dynamicsWorld) {
+                        _detailedCollisions.removeCollisions();
+            auto itr = _otherCharactersDetailedCollisions.begin();
+            while (itr != _otherCharactersDetailedCollisions.end()) {
+                itr->second.removeCollisions();
+                ++itr;
+            }
             if (_rigidBody) {
                 _dynamicsWorld->removeRigidBody(_rigidBody);
                 _dynamicsWorld->removeAction(this);
@@ -117,13 +140,21 @@ void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
             // add to new world
             _dynamicsWorld = world;
             _pendingFlags &= ~PENDING_FLAG_JUMP;
-            _dynamicsWorld->addRigidBody(_rigidBody, collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR);
+            _dynamicsWorld->addRigidBody(_rigidBody, collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR & ~BULLET_COLLISION_GROUP_KINEMATIC);
             _dynamicsWorld->addAction(this);
             // restore gravity settings because adding an object to the world overwrites its gravity setting
             _rigidBody->setGravity(_currentGravity * _currentUp);
             btCollisionShape* shape = _rigidBody->getCollisionShape();
             assert(shape && shape->getShapeType() == CONVEX_HULL_SHAPE_PROXYTYPE);
             _ghost.setCharacterShape(static_cast<btConvexHullShape*>(shape));
+        }
+        if (world) {
+            _detailedCollisions.setDynamicsWorld(world);
+            auto itr = _otherCharactersDetailedCollisions.begin();
+            while (itr != _otherCharactersDetailedCollisions.end()) {
+                itr->second.setDynamicsWorld(world);
+                ++itr;
+            }
         }
         _ghost.setCollisionGroupAndMask(collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR & (~ collisionGroup));
         _ghost.setCollisionWorld(_dynamicsWorld);

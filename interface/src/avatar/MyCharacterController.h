@@ -26,6 +26,7 @@ public:
 
     void setDynamicsWorld(btDynamicsWorld* world) override;
     void updateShapeIfNecessary() override;
+    void updateDetailedCollisions(float deltaTime);
 
     // Sweeping a convex shape through the physics simulation can be expensive when the obstacles are too
     // complex (e.g. small 20k triangle static mesh) so instead we cast several rays forward and if they
@@ -41,13 +42,24 @@ public:
     bool testRayShotgun(const glm::vec3& position, const glm::vec3& step, RayShotgunResult& result);
 
     void setDensity(btScalar density) { _density = density; }
+    std::vector<std::vector<glm::vec3>> getWorldCollisionShapes() const { return _worldCollisionShapes; };
+    std::vector<btTransform> getWorldCollisionTransforms() const;
 
+    bool isInPhysicsSimulation(QUuid avatarId);
+    void addOtherAvatarDetailedCollisions(QUuid avatarId, std::vector<std::vector<btVector3>>& shapes);
+    void addOtherAvatarDetailedCollisions(QUuid avatarId, std::vector<btVector3>& bboxes, std::vector<btVector3>& offsets);
+    void removeOtherAvatarDetailedCollisions(QUuid avatarId);
+    void updateOtherAvatarDetailedCollisons(float deltaTime, QUuid avatarId, std::vector<btTransform>& transforms);
+    const CharacterDetailedCollisions& getAvatarDetailedCollisions(QUuid avatarId) const { return _otherCharactersDetailedCollisions.find(avatarId)->second; };
+    const CharacterDetailedCollisions& getMyAvatarDetailedCollisions() const { return _detailedCollisions; };
 protected:
     void initRayShotgun(const btCollisionWorld* world);
     void updateMassProperties() override;
 
 private:
     btConvexHullShape* computeShape() const;
+    void updateDetailedCollisionsShapes();
+    std::vector<std::vector<glm::vec3>> _worldCollisionShapes;
 
 protected:
     MyAvatar* _avatar { nullptr };

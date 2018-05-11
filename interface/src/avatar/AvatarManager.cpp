@@ -184,10 +184,19 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
     int numAvatarsUpdated = 0;
     int numAVatarsNotUpdated = 0;
 
+    auto myAvatarDimensions = _myAvatar->getBounds().getDimensions();
+    auto myAvatarMaxXYDiameter = std::max(myAvatarDimensions.x, myAvatarDimensions.z);
+
     render::Transaction transaction;
     while (!sortedAvatars.empty()) {
         const SortableAvatar& sortData = sortedAvatars.top();
         const auto avatar = std::static_pointer_cast<Avatar>(sortData.getAvatar());
+
+        float distanceToOtherAvatar = glm::distance(_myAvatar->getWorldPosition(), avatar->getWorldPosition());
+        auto otherAvatarDimensions = avatar->getBounds().getDimensions();
+        auto otherAvatarMaxXYDiameter = std::max(otherAvatarDimensions.x, otherAvatarDimensions.z);
+
+        float maxDistance = (myAvatarMaxXYDiameter + otherAvatarMaxXYDiameter)/2;
 
         bool ignoring = DependencyManager::get<NodeList>()->isPersonalMutingNode(avatar->getID());
         if (ignoring) {
@@ -210,6 +219,46 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
                 _motionStates.insert(avatar.get(), motionState);
                 _motionStatesToAddToPhysics.insert(motionState);
             }
+        }        
+        
+        MyCharacterController* characterController = _myAvatar->getCharacterController();
+        if (!characterController->isInPhysicsSimulation(avatar->getID()) && distanceToOtherAvatar < maxDistance) {
+            const Rig& rig = avatar->getSkeletonModel()->getRig();
+            auto scale = 0.9f*glm::vec3(0.01f, 0.01f, 0.01f);
+            if (avatar->getSkeletonModel()->isActive() && avatar->getJointCount() > 0) {
+                const FBXGeometry& geometry = avatar->getSkeletonModel()->getFBXGeometry();
+                std::vector<std::vector<btVector3>> shapes;
+                std::vector<btVector3> offsets;
+                for (int32_t i = 0; i < avatar->getJointCount(); i++) {
+                    const FBXJointShapeInfo& shapeInfo = geometry.joints[i].shapeInfo;
+                    std::vector<btVector3> btPoints;
+                    for (int32_t j = 0; j < shapeInfo.debugLines.size(); j++) {
+                        const glm::vec3 &point = shapeInfo.debugLines[j];
+                        auto rigPoint = scale * point;
+                        btVector3 btPoint = glmToBullet(rigPoint);
+                        btPoints.push_back(btPoint);
+                    }
+                    shapes.push_back(btPoints);
+                }
+                characterController->addOtherAvatarDetailedCollisions(avatar->getID(), shapes);
+                qDebug() << "Added " << shapes.size() << " shapes";
+
+                connect(avatar.get(), &AvatarData::skeletonModelURLChanged, this, [this, avatar, characterController]() {
+                    characterController->removeOtherAvatarDetailedCollisions(avatar->getID());
+                    disconnect(avatar.get(), &AvatarData::skeletonModelURLChanged, this, nullptr);
+                });
+            }
+        } else if (distanceToOtherAvatar >= maxDistance) {
+            characterController->removeOtherAvatarDetailedCollisions(avatar->getID());
+            disconnect(avatar.get(), &AvatarData::skeletonModelURLChanged, this, nullptr);
+        } else {
+            std::vector<btTransform> transforms;
+            for (int32_t i = 0; i < avatar->getJointCount(); i++) {
+                auto jointRotation = avatar->getWorldOrientation() * avatar->getAbsoluteJointRotationInObjectFrame(i);
+                auto jointPosition = avatar->getJointPosition(i);
+                transforms.push_back(btTransform(glmToBullet(jointRotation), glmToBullet(jointPosition)));
+            }
+            characterController->updateOtherAvatarDetailedCollisons(deltaTime, avatar->getID(), transforms);
         }
         avatar->animateScaleChanges(deltaTime);
 
@@ -329,6 +378,8 @@ void AvatarManager::handleRemovedAvatar(const AvatarSharedPointer& removedAvatar
         _motionStatesToRemoveFromPhysics.push_back(motionState);
         _motionStates.erase(itr);
     }
+    
+    _myAvatar->getCharacterController()->removeOtherAvatarDetailedCollisions(avatar->getID());
 
     if (removalReason == KillAvatarReason::TheirAvatarEnteredYourBubble) {
         emit DependencyManager::get<UsersScriptingInterface>()->enteredIgnoreRadius();
@@ -518,9 +569,7 @@ RayToAvatarIntersectionResult AvatarManager::findRayIntersectionVector(const Pic
             continue;
         }
 
-        float distance;
-        BoxFace face;
-        glm::vec3 surfaceNormal;
+        float distance = 2 * (_myAvatar->getWorldPosition() - avatar->getWorldPosition()).length();
 
         SkeletonModelPointer avatarModel = avatar->getSkeletonModel();
 
@@ -540,27 +589,57 @@ RayToAvatarIntersectionResult AvatarManager::findRayIntersectionVector(const Pic
 
         glm::vec3 start;
         glm::vec3 end;
-        float radius;
-        avatar->getCapsule(start, end, radius);
-        bool intersects = findRayCapsuleIntersection(ray.origin, normDirection, start, end, radius, distance);
-        if (!intersects) {
-            // ray doesn't intersect avatar's capsule
-            continue;
-        }
 
-        QVariantMap extraInfo;
-        intersects = avatarModel->findRayIntersectionAgainstSubMeshes(ray.origin, normDirection,
-                                                                      distance, face, surfaceNormal, extraInfo, true);
-
-        if (intersects && (!result.intersects || distance < result.distance)) {
+        auto &detailedCollisions = _myAvatar->getCharacterController()->getAvatarDetailedCollisions(avatar->getID());
+        auto jointCollisionResult = detailedCollisions.rayTest(glmToBullet(ray.origin), glmToBullet(normDirection), distance);
+        if (jointCollisionResult._intersectWithJoint > -1 && jointCollisionResult._distance > 0) {
             result.intersects = true;
             result.avatarID = avatar->getID();
-            result.distance = distance;
-            result.extraInfo = extraInfo;
+            result.distance = jointCollisionResult._distance;
+            result.extraInfo = QVariantMap();
+            break;
         }
     }
 
     if (result.intersects) {
+        result.intersection = ray.origin + normDirection * result.distance;
+    }
+
+    return result;
+}
+
+RayToAvatarIntersectionResult AvatarManager::findSelfRayIntersection(const PickRay& ray,
+    const QScriptValue& jointIndexesToInclude,
+    const QScriptValue& jointIndexesToDiscard) {
+    QVector<uint> jointsToInclude;
+    QVector<uint> jointsToDiscard;
+    qVectorIntFromScriptValue(jointIndexesToInclude, jointsToInclude);
+    qVectorIntFromScriptValue(jointIndexesToDiscard, jointsToDiscard);
+
+    return findSelfRayIntersectionVector(ray, jointsToInclude, jointsToDiscard);
+}
+
+RayToAvatarIntersectionResult AvatarManager::findSelfRayIntersectionVector(const PickRay& ray,
+    const QVector<uint>& jointIndexesToInclude,
+    const QVector<uint>& jointIndexesToDiscard) {
+    RayToAvatarIntersectionResult result;
+    if (QThread::currentThread() != thread()) {
+        BLOCKING_INVOKE_METHOD(const_cast<AvatarManager*>(this), "findSelfRayIntersectionVector",
+            Q_RETURN_ARG(RayToAvatarIntersectionResult, result),
+            Q_ARG(const PickRay&, ray),
+            Q_ARG(const QVector<uint>&, jointIndexesToInclude),
+            Q_ARG(const QVector<uint>&, jointIndexesToDiscard));
+        return result;
+    }
+
+    glm::vec3 normDirection = glm::normalize(ray.direction);
+
+    auto &detailedCollisions = _myAvatar->getCharacterController()->getMyAvatarDetailedCollisions();
+    auto jointCollisionResult = detailedCollisions.rayTest(glmToBullet(ray.origin), glmToBullet(normDirection), 1.0f, jointIndexesToDiscard);
+    if (jointCollisionResult._intersectWithJoint > -1 && jointCollisionResult._distance > 0) {
+        result.intersects = true;
+        result.distance = jointCollisionResult._distance;
+        result.extraInfo = QVariantMap();
         result.intersection = ray.origin + normDirection * result.distance;
     }
 
