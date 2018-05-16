@@ -1548,7 +1548,7 @@ void Rig::updateFromControllerParameters(const ControllerParameters& params, flo
     bool rightArmEnabled = params.secondaryControllerFlags[SecondaryControllerType_RightArm] & (uint8_t)ControllerFlags::Enabled;
 
     updateHead(headEnabled, hipsEnabled, params.primaryControllerPoses[PrimaryControllerType_Head]);
-
+    
     updateHands(leftHandEnabled, rightHandEnabled, hipsEnabled, hipsEstimated, leftArmEnabled, rightArmEnabled, dt,
                 params.primaryControllerPoses[PrimaryControllerType_LeftHand], params.primaryControllerPoses[PrimaryControllerType_RightHand],
                 params.hipsShapeInfo, params.spineShapeInfo, params.spine1ShapeInfo, params.spine2ShapeInfo);

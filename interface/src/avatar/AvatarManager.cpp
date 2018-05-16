@@ -608,44 +608,6 @@ RayToAvatarIntersectionResult AvatarManager::findRayIntersectionVector(const Pic
     return result;
 }
 
-RayToAvatarIntersectionResult AvatarManager::findSelfRayIntersection(const PickRay& ray,
-    const QScriptValue& jointIndexesToInclude,
-    const QScriptValue& jointIndexesToDiscard) {
-    QVector<uint> jointsToInclude;
-    QVector<uint> jointsToDiscard;
-    qVectorIntFromScriptValue(jointIndexesToInclude, jointsToInclude);
-    qVectorIntFromScriptValue(jointIndexesToDiscard, jointsToDiscard);
-
-    return findSelfRayIntersectionVector(ray, jointsToInclude, jointsToDiscard);
-}
-
-RayToAvatarIntersectionResult AvatarManager::findSelfRayIntersectionVector(const PickRay& ray,
-    const QVector<uint>& jointIndexesToInclude,
-    const QVector<uint>& jointIndexesToDiscard) {
-    RayToAvatarIntersectionResult result;
-    if (QThread::currentThread() != thread()) {
-        BLOCKING_INVOKE_METHOD(const_cast<AvatarManager*>(this), "findSelfRayIntersectionVector",
-            Q_RETURN_ARG(RayToAvatarIntersectionResult, result),
-            Q_ARG(const PickRay&, ray),
-            Q_ARG(const QVector<uint>&, jointIndexesToInclude),
-            Q_ARG(const QVector<uint>&, jointIndexesToDiscard));
-        return result;
-    }
-
-    glm::vec3 normDirection = glm::normalize(ray.direction);
-
-    auto &detailedCollisions = _myAvatar->getCharacterController()->getMyAvatarDetailedCollisions();
-    auto jointCollisionResult = detailedCollisions.rayTest(glmToBullet(ray.origin), glmToBullet(normDirection), 1.0f, jointIndexesToDiscard);
-    if (jointCollisionResult._intersectWithJoint > -1 && jointCollisionResult._distance > 0) {
-        result.intersects = true;
-        result.distance = jointCollisionResult._distance;
-        result.extraInfo = QVariantMap();
-        result.intersection = ray.origin + normDirection * result.distance;
-    }
-
-    return result;
-}
-
 // HACK
 float AvatarManager::getAvatarSortCoefficient(const QString& name) {
     if (name == "size") {

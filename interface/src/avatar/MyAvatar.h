@@ -567,6 +567,8 @@ public:
 
     eyeContactTarget getEyeContactTarget();
 
+    void updateDetailed(float deltaTime);
+
     const MyHead* getMyHead() const;
 
     /**jsdoc
@@ -1364,6 +1366,7 @@ private:
     bool cameraInsideHead(const glm::vec3& cameraPosition) const;
 
     void updateEyeContactTarget(float deltaTime);
+    void updateHandsPosition(float deltaTime);
 
     // These are made private for MyAvatar so that you will use the "use" methods instead
     virtual void setSkeletonModelURL(const QUrl& skeletonModelURL) override;

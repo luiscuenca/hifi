@@ -20,8 +20,8 @@ public:
         _me = me;
         _filter = jointsFilter;
         // the RayResultCallback's group and mask must match MY_AVATAR
-        m_collisionFilterGroup = BULLET_COLLISION_GROUP_DETAILED_RAY;
-        m_collisionFilterMask = BULLET_COLLISION_MASK_DETAILED_RAY;
+        m_collisionFilterGroup = BULLET_COLLISION_GROUP_DYNAMIC;
+        m_collisionFilterMask = BULLET_COLLISION_MASK_DYNAMIC;
     }
 
     virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace) override {
@@ -45,12 +45,14 @@ protected:
 CharacterDetailedCollisions::CharacterDetailedRigidBody::CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints) {
     btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(shapePoints.data()), (int)shapePoints.size());
     shape->setMargin(DETAILED_COLLISION_RADIUS);
-    //_motionState = new btDefaultMotionState();
-    _rigidBody = new btRigidBody(0.0f, _motionState, shape);
+    // _motionState = new btDefaultMotionState();
+    _rigidBody = new btRigidBody(DETAILED_MASS_KINEMATIC, _motionState, shape);
     _rigidBody->setCollisionShape(shape);
-    //_rigidBody->setCollisionFlags(btCollisionObject::CollisionFlags::CF_CHARACTER_OBJECT);
+    _rigidBody->setCollisionFlags(_rigidBody->getCollisionFlags() & ~(btCollisionObject::CF_KINEMATIC_OBJECT |
+                                                                        btCollisionObject::CF_STATIC_OBJECT));
     _rigidBody->setActivationState(DISABLE_DEACTIVATION);
     _rigidBody->setSleepingThresholds(0.0, 0.0);
+    _rigidBody->setFlags(BT_DISABLE_WORLD_GRAVITY);
 }
 
 CharacterDetailedCollisions::CharacterDetailedRigidBody::CharacterDetailedRigidBody(btVector3& bbox, btVector3& offset) {
@@ -68,6 +70,7 @@ CharacterDetailedCollisions::CharacterDetailedRigidBody::CharacterDetailedRigidB
     _rigidBody->setCollisionFlags(btCollisionObject::CollisionFlags::CF_CHARACTER_OBJECT);
     _rigidBody->setActivationState(DISABLE_DEACTIVATION);
     _rigidBody->setSleepingThresholds(0.0, 0.0);
+    _rigidBody->setFlags(BT_DISABLE_WORLD_GRAVITY);
 }
 
 void CharacterDetailedCollisions::CharacterDetailedRigidBody::cleanCollision() {
@@ -87,21 +90,28 @@ void CharacterDetailedCollisions::CharacterDetailedRigidBody::cleanCollision() {
 
 
 void CharacterDetailedCollisions::CharacterDetailedRigidBody::setTransform(float deltaTime, btTransform& transform) {
-    _rotation = transform.getRotation();
-    _position = transform.getOrigin() + _offset.rotate(_rotation.getAxis(), _rotation.getAngle());
-    btTransform lastTransform = _rigidBody->getWorldTransform();
-    btVector3 velocity = transform.getOrigin() - lastTransform.getOrigin();
+
+    if (_init < 10) {
+        _lastTransform = _rigidBody->getWorldTransform();
+        _init++;
+        _rigidBody->setWorldTransform(transform);
+        return;
+    }
+    
+    btVector3 velocity = transform.getOrigin() - _lastTransform.getOrigin();
+    btVector3 force = transform.getOrigin() - _rigidBody->getWorldTransform().getOrigin();
     float invDeltaTime = 1.0f / deltaTime;
     btVector3 linearVelocity = invDeltaTime * velocity;
-
-    glm::quat orientation = bulletToGLM(transform.getRotation());
-    glm::quat lastOrientation = bulletToGLM(lastTransform.getRotation());
-    glm::quat delta = glm::inverse(lastOrientation) * orientation;
-    glm::vec3 angularVelocity = glm::axis(delta) * glm::angle(delta) * invDeltaTime;
-
-    // _rigidBody->setAngularVelocity(glmToBullet(angularVelocity));
-    // _rigidBody->setLinearVelocity(linearVelocity);
-    _rigidBody->setWorldTransform(transform);
+    force = invDeltaTime * force;
+    auto lastRotation = _rigidBody->getWorldTransform().getRotation();
+    auto targetRotation = transform.getRotation();
+    auto deltaRotation = targetRotation * lastRotation.inverse();
+    btVector3 angularVelocity(deltaRotation.getAxis() * deltaRotation.getAngle() * invDeltaTime);
+    
+    _rigidBody->setAngularVelocity(angularVelocity);
+    _rigidBody->setLinearVelocity(0.5f*linearVelocity);
+    _rigidBody->applyCentralImpulse(0.2f*force);
+    _lastTransform = transform;
 }
 
 void CharacterDetailedCollisions::setDynamicsWorld(btDynamicsWorld* world) {
@@ -151,7 +161,10 @@ void CharacterDetailedCollisions::updateCollisions() {
     if (_world) {
         for (int i = 0; i < (int)_rigidBodies.size(); i++) {
             if (hasRigidBody(i)) {
-                _world->addCollisionObject(_rigidBodies[i]._rigidBody, BULLET_COLLISION_GROUP_DETAILED, BULLET_COLLISION_MASK_DETAILED);
+                _world->addRigidBody(_rigidBodies[i]._rigidBody, _group, _mask);
+                //auto group = BULLET_COLLISION_GROUP_KINEMATIC;
+                //auto mask = ~(BULLET_COLLISION_GROUP_MY_AVATAR | BULLET_COLLISION_GROUP_KINEMATIC);
+                //_world->addCollisionObject(_rigidBodies[i]._rigidBody, BULLET_COLLISION_GROUP_DETAILED, BULLET_COLLISION_MASK_DETAILED);
             }
         }
         _updated = true;

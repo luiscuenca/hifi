@@ -488,6 +488,52 @@ void MyAvatar::update(float deltaTime) {
     updateEyeContactTarget(deltaTime);
 }
 
+void MyAvatar::updateHandsPosition(float deltaTime) {
+    if (_skeletonModel->isActive()) {
+        auto& rig = _skeletonModel->getRig();
+        auto collisions = getCharacterController()->getMyAvatarDetailedCollisions();
+        auto bodies = collisions.getRigidBodies();
+
+        auto right = getJointIndex("RightHand");
+        auto left = getJointIndex("LeftHand");
+        auto head = getJointIndex("Head");
+
+        auto rightParent = rig.getAnimSkeleton()->getParentIndex(right);
+        auto leftParent = rig.getAnimSkeleton()->getParentIndex(left);
+        auto headParent = rig.getAnimSkeleton()->getParentIndex(head);
+
+        if (bodies.size() > right && bodies.size() > left && bodies.size() > head) {
+            auto rightPos = bodies[right]._rigidBody->getWorldTransform().getOrigin();
+            auto leftPos = bodies[left]._rigidBody->getWorldTransform().getOrigin();
+            auto headPos = bodies[head]._rigidBody->getWorldTransform().getOrigin();
+
+            auto rightRot = bodies[right]._rigidBody->getWorldTransform().getRotation();
+            auto leftRot = bodies[left]._rigidBody->getWorldTransform().getRotation();
+            auto headRot = bodies[head]._rigidBody->getWorldTransform().getRotation();
+
+            auto rightLocal = worldToJointPoint(bulletToGLM(rightPos), rightParent);
+            auto leftLocal = worldToJointPoint(bulletToGLM(leftPos), leftParent);
+            auto headLocal = worldToJointPoint(bulletToGLM(headPos), headParent);
+
+            //rightLocal *= 100.0f;
+            //leftLocal *= 100.0f;
+
+            auto rightTrans = glm::vec3(100.0f * rightLocal.x, 100.0f * rightLocal.y, 100.0f * rightLocal.z);
+            auto leftTrans = glm::vec3(100.0f * leftLocal.x, 100.0f * leftLocal.y, 100.0f * leftLocal.z);
+            auto headTrans = glm::vec3(100.0f * headLocal.x, 100.0f * headLocal.y, 100.0f * headLocal.z);
+
+            auto rrot = worldToJointRotation(bulletToGLM(rightRot), rightParent);
+            auto lrot = worldToJointRotation(bulletToGLM(leftRot), leftParent);
+            auto hrot = worldToJointRotation(bulletToGLM(headRot), headParent);
+
+            rig.setJointState(right, true, rrot, rightTrans, 6.0f);
+            rig.setJointState(left, true, lrot, leftTrans, 6.0f);
+            rig.setJointState(head, true, hrot, headTrans, 6.0f);
+        }
+    }
+
+}
+
 void MyAvatar::updateEyeContactTarget(float deltaTime) {
 
     _eyeContactTargetTimer -= deltaTime;
@@ -2039,6 +2085,13 @@ void MyAvatar::postUpdate(float deltaTime, const render::ScenePointer& scene) {
     }
 }
 
+void MyAvatar::updateDetailed(float deltaTime) {
+    _characterController.updateDetailedCollisions(deltaTime);
+    if (qApp->isHMDMode()) {
+        updateHandsPosition(deltaTime);
+    }
+}
+
 void MyAvatar::preDisplaySide(RenderArgs* renderArgs) {
 
     // toggle using the cauterizedBones depending on where the camera is and the rendering pass type.
@@ -2179,7 +2232,6 @@ void MyAvatar::updateOrientation(float deltaTime) {
         head->setBasePitch(getHead()->getBasePitch() + getDriveKey(PITCH) * _pitchSpeed * deltaTime);
         head->setBaseRoll(0.0f);
     }
-    _characterController.updateDetailedCollisions(deltaTime);
 }
 
 void MyAvatar::updateActionMotor(float deltaTime) {

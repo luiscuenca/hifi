@@ -73,6 +73,8 @@ bool MyCharacterController::isInPhysicsSimulation(QUuid avatarId) {
 
 void MyCharacterController::addOtherAvatarDetailedCollisions(QUuid avatarId, std::vector<std::vector<btVector3>>& shapes) {
     CharacterDetailedCollisions collisions;
+    collisions.setCollisionGroup(BULLET_COLLISION_GROUP_OTHER_AVATAR);
+    collisions.setCollisionMask(BULLET_COLLISION_GROUP_KINEMATIC);
     for (int i = 0; i < shapes.size(); i++) {
         collisions.addRigidBody(shapes[i]);
     }
@@ -165,10 +167,33 @@ std::vector<btTransform> MyCharacterController::getWorldCollisionTransforms() co
 
 void MyCharacterController::updateDetailedCollisions(float deltaTime) {
     const Rig& rig = _avatar->getSkeletonModel()->getRig();
+
     for (int32_t i = 0; i < rig.getJointStateCount(); i++) {
+
+        auto leftHandPose = _avatar->getControllerPoseInWorldFrame(controller::Action::LEFT_HAND);
+        auto rightHandPose = _avatar->getControllerPoseInWorldFrame(controller::Action::RIGHT_HAND);
+        auto headPose = _avatar->getControllerPoseInWorldFrame(controller::Action::HEAD);
+        
+        int rightIndex = _avatar->getJointIndex("RightHand");
+        int leftIndex = _avatar->getJointIndex("LeftHand");
+        int headIndex = _avatar->getJointIndex("Head");
+
         if (_detailedCollisions.hasRigidBody(i)) {
-            auto jointRotation = _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
-            auto jointPosition = _avatar->getJointPosition(i);
+            glm::quat jointRotation;
+            glm::vec3 jointPosition;
+            if (i == rightIndex) {
+                jointPosition = rightHandPose.getTranslation();
+                jointRotation = rightHandPose.getRotation();
+            } else if (i == leftIndex) {
+                jointPosition = leftHandPose.getTranslation();
+                jointRotation = leftHandPose.getRotation();
+            } else if (i == headIndex) {
+                jointPosition = headPose.getTranslation();
+                jointRotation = headPose.getRotation();
+            } else {
+                _avatar->getJointPosition(i);
+                _avatar->getWorldOrientation() * _avatar->getAbsoluteJointRotationInObjectFrame(i);
+            }
             _detailedCollisions.setRigidBodyTransform(deltaTime, i, jointRotation, jointPosition);
         }
     }

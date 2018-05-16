@@ -78,6 +78,8 @@ CharacterController::CharacterController() {
     _hasSupport = false;
 
     _pendingFlags = PENDING_FLAG_UPDATE_SHAPE;
+    _detailedCollisions.setCollisionGroup(BULLET_COLLISION_GROUP_KINEMATIC);
+    _detailedCollisions.setCollisionMask(~(BULLET_COLLISION_GROUP_MY_AVATAR | BULLET_COLLISION_GROUP_KINEMATIC));
 }
 
 CharacterController::~CharacterController() {
@@ -140,7 +142,7 @@ void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
             // add to new world
             _dynamicsWorld = world;
             _pendingFlags &= ~PENDING_FLAG_JUMP;
-            _dynamicsWorld->addRigidBody(_rigidBody, collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR & ~BULLET_COLLISION_GROUP_KINEMATIC);
+            _dynamicsWorld->addRigidBody(_rigidBody, collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR);
             _dynamicsWorld->addAction(this);
             // restore gravity settings because adding an object to the world overwrites its gravity setting
             _rigidBody->setGravity(_currentGravity * _currentUp);

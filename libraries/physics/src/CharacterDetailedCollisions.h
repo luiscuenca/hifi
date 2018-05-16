@@ -17,6 +17,7 @@
 #include <btBulletDynamicsCommon.h>
 #include <GLMHelpers.h>
 #include "BulletUtil.h"
+#include "PhysicsCollisionGroups.h"
 
 
 class CharacterDetailedCollisions {
@@ -34,12 +35,12 @@ public:
         void setTransform(float deltaTime, btTransform& transform);
         void cleanCollision();
 
-        btVector3 _position;
+        btTransform _lastTransform;
         btVector3 _offset;
-        btVector3 _previusPosition;
-        btQuaternion _rotation;
-        btRigidBody* _rigidBody{ nullptr };
-        btDefaultMotionState* _motionState{ nullptr };
+        btRigidBody* _rigidBody { nullptr };
+        btDefaultMotionState* _motionState { nullptr };
+
+        int _init { 0 };
 
     };
 
@@ -48,7 +49,8 @@ public:
         float _distance{ 0.0f };
         glm::vec3 _intersectionPoint;
     };
-
+    void setCollisionGroup(int16_t group) { _group = group; };
+    void setCollisionMask(int16_t mask) { _mask = mask; };
     void setDynamicsWorld(btDynamicsWorld* world);
     void addRigidBody(std::vector<btVector3>& points);
     void addRigidBody(btVector3& bbox, btVector3& offset);
@@ -63,8 +65,10 @@ public:
 
 private:
     std::vector<CharacterDetailedRigidBody> _rigidBodies;
-    btDynamicsWorld* _world{ nullptr };
-    bool _updated{ false };
+    btDynamicsWorld* _world { nullptr };
+    bool _updated { false };
+    int16_t _group { BULLET_COLLISION_GROUP_COLLISIONLESS };
+    int16_t _mask { BULLET_COLLISION_MASK_COLLISIONLESS };
 
 };
 
