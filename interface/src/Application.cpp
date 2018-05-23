@@ -5862,7 +5862,6 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("enqueueFrame");
         getMain3DScene()->enqueueFrame();
     }
-    myAvatar->updateDetailed(deltaTime);
 }
 
 void Application::queryAvatars() {

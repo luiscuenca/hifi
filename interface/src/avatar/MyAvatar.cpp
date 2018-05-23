@@ -488,7 +488,13 @@ void MyAvatar::update(float deltaTime) {
     updateEyeContactTarget(deltaTime);
 }
 
-void MyAvatar::updateHandsPosition(float deltaTime) {
+void MyAvatar::updateHandsAndHeadDetailedPoses(float deltaTime, AnimPose& leftHand, AnimPose& rightHand, AnimPose& head) {
+
+    auto leftControllerPose = getControllerPoseInWorldFrame(controller::Action::LEFT_HAND);
+    auto rightControllerPose = getControllerPoseInWorldFrame(controller::Action::RIGHT_HAND);
+    auto headControllerPose = getControllerPoseInWorldFrame(controller::Action::HEAD);
+
+    _characterController.updateDetailedCollisions(deltaTime);
     if (_skeletonModel->isActive()) {
         auto& rig = _skeletonModel->getRig();
         auto collisions = getCharacterController()->getMyAvatarDetailedCollisions();
@@ -503,35 +509,35 @@ void MyAvatar::updateHandsPosition(float deltaTime) {
         auto headParent = rig.getAnimSkeleton()->getParentIndex(head);
 
         if (bodies.size() > right && bodies.size() > left && bodies.size() > head) {
-            auto rightPos = bodies[right]._rigidBody->getWorldTransform().getOrigin();
-            auto leftPos = bodies[left]._rigidBody->getWorldTransform().getOrigin();
-            auto headPos = bodies[head]._rigidBody->getWorldTransform().getOrigin();
+            auto rightPos = bulletToGLM(bodies[right]._rigidBody->getWorldTransform().getOrigin());
+            auto leftPos = bulletToGLM(bodies[left]._rigidBody->getWorldTransform().getOrigin());
+            auto headPos = bulletToGLM(bodies[head]._rigidBody->getWorldTransform().getOrigin());
 
-            auto rightRot = bodies[right]._rigidBody->getWorldTransform().getRotation();
-            auto leftRot = bodies[left]._rigidBody->getWorldTransform().getRotation();
-            auto headRot = bodies[head]._rigidBody->getWorldTransform().getRotation();
+            auto rightRot = bulletToGLM(bodies[right]._rigidBody->getWorldTransform().getRotation());
+            auto leftRot = bulletToGLM(bodies[left]._rigidBody->getWorldTransform().getRotation());
+            auto headRot = bulletToGLM(bodies[head]._rigidBody->getWorldTransform().getRotation());
 
-            auto rightLocal = worldToJointPoint(bulletToGLM(rightPos), rightParent);
-            auto leftLocal = worldToJointPoint(bulletToGLM(leftPos), leftParent);
-            auto headLocal = worldToJointPoint(bulletToGLM(headPos), headParent);
+            AnimPose invAvatarPose = AnimPose(getWorldOrientation(), getWorldPosition()).inverse();
+            
+            leftHand = invAvatarPose * AnimPose(leftRot, leftPos);
+            rightHand = invAvatarPose * AnimPose(rightRot, rightPos);
 
-            //rightLocal *= 100.0f;
-            //leftLocal *= 100.0f;
+            auto hmdInterface = DependencyManager::get<HMDScriptingInterface>();
 
-            auto rightTrans = glm::vec3(100.0f * rightLocal.x, 100.0f * rightLocal.y, 100.0f * rightLocal.z);
-            auto leftTrans = glm::vec3(100.0f * leftLocal.x, 100.0f * leftLocal.y, 100.0f * leftLocal.z);
-            auto headTrans = glm::vec3(100.0f * headLocal.x, 100.0f * headLocal.y, 100.0f * headLocal.z);
+            auto rightDelta = glm::distance(leftPos, leftControllerPose.translation);
+            auto leftDelta = glm::distance(rightPos, rightControllerPose.translation);
 
-            auto rrot = worldToJointRotation(bulletToGLM(rightRot), rightParent);
-            auto lrot = worldToJointRotation(bulletToGLM(leftRot), leftParent);
-            auto hrot = worldToJointRotation(bulletToGLM(headRot), headParent);
+            const float SHOW_CONTROLLERS_DISTANCE = 0.04f;
 
-            rig.setJointState(right, true, rrot, rightTrans, 6.0f);
-            rig.setJointState(left, true, lrot, leftTrans, 6.0f);
-            rig.setJointState(head, true, hrot, headTrans, 6.0f);
+            if (rightDelta > SHOW_CONTROLLERS_DISTANCE || leftDelta > SHOW_CONTROLLERS_DISTANCE) {
+                if (!hmdInterface->shouldShowHandControllers()) {
+                    hmdInterface->requestShowHandControllers();
+                }
+            } else if (hmdInterface->shouldShowHandControllers()) {
+                hmdInterface->requestHideHandControllers();
+            }            
         }
     }
-
 }
 
 void MyAvatar::updateEyeContactTarget(float deltaTime) {
@@ -2082,13 +2088,6 @@ void MyAvatar::postUpdate(float deltaTime, const render::ScenePointer& scene) {
                 }
             }
         }
-    }
-}
-
-void MyAvatar::updateDetailed(float deltaTime) {
-    _characterController.updateDetailedCollisions(deltaTime);
-    if (qApp->isHMDMode()) {
-        updateHandsPosition(deltaTime);
     }
 }
 

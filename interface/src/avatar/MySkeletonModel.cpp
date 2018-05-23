@@ -224,6 +224,11 @@ void MySkeletonModel::updateRig(float deltaTime, glm::mat4 parentTransform) {
     }
 
     _rig.updateFromControllerParameters(params, deltaTime);
+    if (qApp->isHMDMode()) {
+        AnimPose leftPose, rightPose, headPose;
+        myAvatar->updateHandsAndHeadDetailedPoses(deltaTime, leftPose, rightPose, headPose);
+        _rig.forceHandsAndHeadPoses(avatarToRigPose * leftPose, avatarToRigPose * rightPose, avatarToRigPose * headPose);
+    }
 
     Rig::CharacterControllerState ccState = convertCharacterControllerState(myAvatar->getCharacterController()->getState());
 
@@ -246,6 +251,7 @@ void MySkeletonModel::updateRig(float deltaTime, glm::mat4 parentTransform) {
     _rig.updateFromEyeParameters(eyeParams);
 
     updateFingers();
+
 }
 
 
