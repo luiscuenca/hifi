@@ -16,6 +16,7 @@
 
 #include <btBulletDynamicsCommon.h>
 #include <GLMHelpers.h>
+#include <ScriptValueUtils.h>
 #include "BulletUtil.h"
 #include "PhysicsCollisionGroups.h"
 
@@ -24,10 +25,14 @@ class CharacterDetailedCollisions {
 public:
 
     struct CharacterDetailedRigidBody {
+        enum delta {
+            POSITION = 0,
+            FRAME
+        };
         const float DETAILED_COLLISION_RADIUS = 0.003f;
         const float DETAILED_MASS_KINEMATIC = 1.0f;
         const float LINEAR_VELOCITY_MULTIPLIER = 100.0f;
-
+        
         CharacterDetailedRigidBody() { _rigidBody = nullptr; };
         CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints);
         CharacterDetailedRigidBody(btVector3& bbox, btVector3& offset);
@@ -41,6 +46,25 @@ public:
         btDefaultMotionState* _motionState { nullptr };
 
         int _init { 0 };
+        bool _colliding { false };
+
+        int _forceDeltaType {delta::FRAME};
+        int _velocityDeltaType {delta::FRAME};
+        int _impulseDeltaType {delta::POSITION};
+
+        float _forceDeltaFrameMult { 0.0f };
+        float _velocityDeltaFrameMult { 0.5f };
+        float _impulseDeltaFrameMult { 0.0f };
+        
+        float _forceDeltaPositionMult { 0.0f };
+        float _velocityDeltaPositionMult { 0.0f };
+        float _impulseDeltaPositionMult { 0.2f };
+
+        bool _applyLinearVelocity { true };
+        bool _applyImpulse { true };
+        bool _applyForce { false };
+
+        bool _attenuate { true };
 
     };
 
@@ -60,9 +84,10 @@ public:
     void removeCollisions();
     void cleanCollisions();
     bool hasRigidBody(int jointIndex);
+    void configurePhysics(const std::vector<float>& args);
     RayJointResult rayTest(const btVector3& origin, const btVector3& direction, const btScalar& length, const QVector<uint>& jointsToExclude = QVector<uint>()) const;
     const std::vector<CharacterDetailedRigidBody>& getRigidBodies() const { return _rigidBodies; };
-
+    
 private:
     std::vector<CharacterDetailedRigidBody> _rigidBodies;
     btDynamicsWorld* _world { nullptr };

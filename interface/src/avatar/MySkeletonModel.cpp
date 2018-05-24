@@ -227,7 +227,7 @@ void MySkeletonModel::updateRig(float deltaTime, glm::mat4 parentTransform) {
     if (qApp->isHMDMode()) {
         AnimPose leftPose, rightPose, headPose;
         myAvatar->updateHandsAndHeadDetailedPoses(deltaTime, leftPose, rightPose, headPose);
-        _rig.forceHandsAndHeadPoses(avatarToRigPose * leftPose, avatarToRigPose * rightPose, avatarToRigPose * headPose);
+        _rig.forceHandsPoses(avatarToRigPose * leftPose, avatarToRigPose * rightPose);
     }
 
     Rig::CharacterControllerState ccState = convertCharacterControllerState(myAvatar->getCharacterController()->getState());

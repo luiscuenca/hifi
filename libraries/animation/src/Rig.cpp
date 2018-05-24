@@ -1345,7 +1345,7 @@ void Rig::updateHands(bool leftHandEnabled, bool rightHandEnabled, bool hipsEnab
     }
 }
 
-void Rig::forceHandsAndHeadPoses(AnimPose& leftHandPose, AnimPose& rightHandPose, AnimPose& headPose) {
+void Rig::forceHandsPoses(AnimPose& leftHandPose, AnimPose& rightHandPose) {
     _animVars.set("leftHandPosition", leftHandPose.trans());
     _animVars.set("leftHandRotation", leftHandPose.rot());
     _animVars.set("leftHandType", (int)IKTarget::Type::RotationAndPosition);
@@ -1353,10 +1353,6 @@ void Rig::forceHandsAndHeadPoses(AnimPose& leftHandPose, AnimPose& rightHandPose
     _animVars.set("rightHandPosition", rightHandPose.trans());
     _animVars.set("rightHandRotation", rightHandPose.rot());
     _animVars.set("rightHandType", (int)IKTarget::Type::RotationAndPosition);
-
-    _animVars.set("headPosition", headPose.trans());
-    _animVars.set("headRotation", headPose.rot());
-    _animVars.set("headType", (int)IKTarget::Type::RotationAndPosition);
 }
 
 void Rig::updateFeet(bool leftFootEnabled, bool rightFootEnabled, const AnimPose& leftFootPose, const AnimPose& rightFootPose) {

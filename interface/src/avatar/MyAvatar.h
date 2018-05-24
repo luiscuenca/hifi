@@ -569,6 +569,8 @@ public:
 
     void updateHandsAndHeadDetailedPoses(float deltaTime, AnimPose& leftHand, AnimPose& rightHand, AnimPose& head);
 
+    Q_INVOKABLE void updateDetailedPhysics(QScriptValue args);
+
     const MyHead* getMyHead() const;
 
     /**jsdoc

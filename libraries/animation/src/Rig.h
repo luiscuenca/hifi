@@ -217,7 +217,7 @@ public:
     // input assumed to be in rig space
     void computeHeadFromHMD(const AnimPose& hmdPose, glm::vec3& headPositionOut, glm::quat& headOrientationOut) const;
 
-    void forceHandsAndHeadPoses(AnimPose& leftHandPose, AnimPose& rightHandPose, AnimPose& headPose);
+    void forceHandsPoses(AnimPose& leftHandPose, AnimPose& rightHandPose);
 
 signals:
     void onLoadComplete();

@@ -589,6 +589,65 @@ void MyAvatar::updateChildCauterization(SpatiallyNestablePointer object) {
     }
 }
 
+void MyAvatar::updateDetailedPhysics(QScriptValue args) {
+
+    if (_skeletonModel->isActive()) {
+        auto collisions = _characterController.getMyAvatarDetailedCollisions();
+        
+        std::vector<float> argsVals(13);
+        
+        QScriptValueIterator it(args);
+
+        while (it.hasNext()) {
+            it.next();
+            auto key = it.name();
+            
+            if (key == "applyForce") {
+                argsVals[0] = (float)it.value().toBool();
+            }
+            if (key == "applyImpulse") {
+                argsVals[1] = (float)it.value().toBool();
+            }
+            if (key == "applyLinearVelocity") {
+                argsVals[2] = (float)it.value().toBool();
+            }
+            if (key == "forceDeltaFrameMult") {
+                argsVals[3] = (float)it.value().toNumber();
+            }
+            if (key == "forceDeltaPositionMult") {
+                argsVals[4] = (float)it.value().toNumber();
+            }
+            if (key == "forceDeltaType") {
+                argsVals[5] = (float)it.value().toInteger();
+            }
+            if (key == "impulseDeltaFrameMult") {
+                argsVals[6] = (float)it.value().toNumber();
+            }
+            if (key == "impulseDeltaPositionMult") {
+                argsVals[7] = (float)it.value().toNumber();
+            }
+            if (key == "impulseDeltaType") {
+                argsVals[8] = (float)it.value().toInteger();
+            }
+            if (key == "velocityDeltaFrameMult") {
+                argsVals[9] = (float)it.value().toNumber();
+            }
+            if (key == "velocityDeltaPositionMult") {
+                argsVals[10] = (float)it.value().toNumber();
+            }
+            if (key == "velocityDeltaType") {
+                argsVals[11] = (float)it.value().toInteger();
+            }        
+            if (key == "attenuate") {
+                argsVals[12] = (float)it.value().toBool();
+            }
+        }
+
+        collisions.configurePhysics(argsVals);
+    }
+
+}
+
 void MyAvatar::simulate(float deltaTime) {
     PerformanceTimer perfTimer("simulate");
 
