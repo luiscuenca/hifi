@@ -90,6 +90,7 @@ public:
     void cleanCollisions();
     bool hasRigidBody(int jointIndex);
     void configurePhysics(const std::vector<float>& args);
+    void getPhysicsArgs(std::vector<float>& args);
     RayJointResult rayTest(const btVector3& origin, const btVector3& direction, const btScalar& length, const QVector<uint>& jointsToExclude = QVector<uint>()) const;
     const std::vector<CharacterDetailedRigidBody>& getRigidBodies() const { return _rigidBodies; };
     

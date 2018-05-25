@@ -570,6 +570,7 @@ public:
     void updateHandsAndHeadDetailedPoses(float deltaTime, AnimPose& leftHand, AnimPose& rightHand, AnimPose& head);
 
     Q_INVOKABLE void updateDetailedPhysics(QScriptValue args);
+    Q_INVOKABLE QVariantMap getDetailedPhysics();
 
     const MyHead* getMyHead() const;
 

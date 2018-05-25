@@ -210,6 +210,28 @@ void CharacterDetailedCollisions::addRigidBody(btVector3& bbox, btVector3& offse
     _rigidBodies.push_back(CharacterDetailedRigidBody(bbox, offsets));
 }
 
+void CharacterDetailedCollisions::getPhysicsArgs(std::vector<float>& args) {
+    args.clear();
+    args.resize(13);
+    if (_rigidBodies.size() > 0) {
+        auto &body = _rigidBodies[0];
+
+        args[0] = body._applyForce;
+        args[1] = body._applyImpulse;
+        args[2] = body._applyLinearVelocity;
+        args[3] = body._forceDeltaFrameMult;
+        args[4] = body._forceDeltaPositionMult;
+        args[5] = body._forceDeltaType;
+        args[6] = body._impulseDeltaFrameMult;
+        args[7] = body._impulseDeltaPositionMult;
+        args[8] = body._impulseDeltaType;
+        args[9] = body._velocityDeltaFrameMult;
+        args[10] = body._velocityDeltaPositionMult;
+        args[11] = body._velocityDeltaType;
+        args[12] = body._attenuate;
+    }
+}
+
 void CharacterDetailedCollisions::configurePhysics(const std::vector<float>& args) {
     for (int i = 0; i < _rigidBodies.size(); i++) {
         auto &body = _rigidBodies[i];

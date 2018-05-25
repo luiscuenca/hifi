@@ -589,6 +589,53 @@ void MyAvatar::updateChildCauterization(SpatiallyNestablePointer object) {
     }
 }
 
+QVariantMap MyAvatar::getDetailedPhysics() {
+    QScriptEngine engine;
+    QVariantMap result;
+    if (_skeletonModel->isActive()) {
+        std::vector<float> argsVals;
+        auto collisions = _characterController.getMyAvatarDetailedCollisions();
+        collisions.getPhysicsArgs(argsVals);
+
+        bool applyForce = (bool)argsVals[0];
+        bool applyImpulse = (bool)argsVals[1];
+        bool applyLinearVelocity = (bool)argsVals[2];
+
+        float forceDeltaFrameMult = (float)argsVals[3];
+        float forceDeltaPositionMult = (float)argsVals[4];
+        int forceDeltaType = (int)argsVals[5];
+
+        float impulseDeltaFrameMult = (float)argsVals[6];
+        float impulseDeltaPositionMult = (float)argsVals[7];
+        int impulseDeltaType = (int)argsVals[8];
+
+        float velocityDeltaFrameMult = (float)argsVals[9];
+        float velocityDeltaPositionMult = (float)argsVals[10];
+        int velocityDeltaType = (int)argsVals[11];
+
+        bool attenuate = (bool)argsVals[12];
+
+        result.insert("applyForce", QVariant(applyForce));
+
+
+        result.insert("forceDelta", forceDeltaType == CharacterDetailedCollisions::CharacterDetailedRigidBody::delta::FRAME ? forceDeltaFrameMult : forceDeltaPositionMult);
+        result.insert("forceType", forceDeltaType);
+
+        result.insert("applyImpulse", applyImpulse);
+        result.insert("impulseDelta", impulseDeltaType == CharacterDetailedCollisions::CharacterDetailedRigidBody::delta::FRAME ? impulseDeltaFrameMult : impulseDeltaPositionMult);
+        result.insert("impulseType", impulseDeltaType);
+
+        result.insert("applyLinearVelocity", applyLinearVelocity);
+        result.insert("velocityDelta", velocityDeltaType == CharacterDetailedCollisions::CharacterDetailedRigidBody::delta::FRAME ? velocityDeltaFrameMult : velocityDeltaPositionMult);
+        result.insert("velocityType", velocityDeltaType);
+
+        result.insert("attenuate", attenuate);
+
+    }
+
+    return result;
+}
+
 void MyAvatar::updateDetailedPhysics(QScriptValue args) {
 
     if (_skeletonModel->isActive()) {
