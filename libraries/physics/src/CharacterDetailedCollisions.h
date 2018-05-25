@@ -29,12 +29,17 @@ public:
             POSITION = 0,
             FRAME
         };
+        enum type {
+            KINEMATIC = 0,
+            DYNAMIC
+        };
         const float DETAILED_COLLISION_RADIUS = 0.003f;
-        const float DETAILED_MASS_KINEMATIC = 1.0f;
+        const float DETAILED_MASS_KINEMATIC = 2.0f;
+        const float DETAILED_MASS_DYNAMIC = 1.0f;
         const float LINEAR_VELOCITY_MULTIPLIER = 100.0f;
         
         CharacterDetailedRigidBody() { _rigidBody = nullptr; };
-        CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints);
+        CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints, int type);
         CharacterDetailedRigidBody(btVector3& bbox, btVector3& offset);
 
         void setTransform(float deltaTime, btTransform& transform);
@@ -48,9 +53,9 @@ public:
         int _init { 0 };
         bool _colliding { false };
 
-        int _forceDeltaType {delta::FRAME};
-        int _velocityDeltaType {delta::FRAME};
-        int _impulseDeltaType {delta::POSITION};
+        int _forceDeltaType { delta::FRAME };
+        int _velocityDeltaType { delta::FRAME };
+        int _impulseDeltaType { delta::POSITION };
 
         float _forceDeltaFrameMult { 0.0f };
         float _velocityDeltaFrameMult { 0.5f };
@@ -65,7 +70,7 @@ public:
         bool _applyForce { false };
 
         bool _attenuate { true };
-
+        int _type { type::KINEMATIC };
     };
 
     struct RayJointResult {
@@ -76,7 +81,7 @@ public:
     void setCollisionGroup(int16_t group) { _group = group; };
     void setCollisionMask(int16_t mask) { _mask = mask; };
     void setDynamicsWorld(btDynamicsWorld* world);
-    void addRigidBody(std::vector<btVector3>& points);
+    void addRigidBody(std::vector<btVector3>& points, int type);
     void addRigidBody(btVector3& bbox, btVector3& offset);
     void setRigidBodyTransform(float deltaTime, int jointIndex, glm::quat& rotation, glm::vec3& position);
     void setRigidBodyTransform(float deltaTime, int jointIndex, btTransform& transform);

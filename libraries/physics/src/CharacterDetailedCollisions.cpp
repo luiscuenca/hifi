@@ -42,10 +42,12 @@ protected:
     QVector<uint> _filter;
 };
 
-CharacterDetailedCollisions::CharacterDetailedRigidBody::CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints) {
+CharacterDetailedCollisions::CharacterDetailedRigidBody::CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints, int type) {
     btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(shapePoints.data()), (int)shapePoints.size());
     shape->setMargin(DETAILED_COLLISION_RADIUS);
     // _motionState = new btDefaultMotionState();
+    _type = type;
+    float mass = type::KINEMATIC ? DETAILED_MASS_KINEMATIC : DETAILED_MASS_DYNAMIC;
     _rigidBody = new btRigidBody(DETAILED_MASS_KINEMATIC, _motionState, shape);
     _rigidBody->setCollisionShape(shape);
     _rigidBody->setCollisionFlags(_rigidBody->getCollisionFlags() & ~(btCollisionObject::CF_KINEMATIC_OBJECT |
@@ -112,7 +114,6 @@ void CharacterDetailedCollisions::CharacterDetailedRigidBody::setTransform(float
     btVector3 angularVelocity(deltaRotation.getAxis() * deltaRotation.getAngle() * invDeltaTime);
 
     _rigidBody->setAngularVelocity(angularVelocity);
-
 
     float attenuation = (_attenuate && deltaFrame.length() < ATTENUATION_THRESHOLD) ? ATTENUATION_VALUE : 1.0f;
 
@@ -190,18 +191,15 @@ void CharacterDetailedCollisions::updateCollisions() {
         for (int i = 0; i < (int)_rigidBodies.size(); i++) {
             if (hasRigidBody(i)) {
                 _world->addRigidBody(_rigidBodies[i]._rigidBody, _group, _mask);
-                //auto group = BULLET_COLLISION_GROUP_KINEMATIC;
-                //auto mask = ~(BULLET_COLLISION_GROUP_MY_AVATAR | BULLET_COLLISION_GROUP_KINEMATIC);
-                //_world->addCollisionObject(_rigidBodies[i]._rigidBody, BULLET_COLLISION_GROUP_DETAILED, BULLET_COLLISION_MASK_DETAILED);
             }
         }
         _updated = true;
     }
 }
 
-void CharacterDetailedCollisions::addRigidBody(std::vector<btVector3>& points) {
+void CharacterDetailedCollisions::addRigidBody(std::vector<btVector3>& points, int type) {
     if (points.size() > 3) {
-        _rigidBodies.push_back(CharacterDetailedRigidBody(points));
+        _rigidBodies.push_back(CharacterDetailedRigidBody(points, type));
     }
     else {
         _rigidBodies.push_back(CharacterDetailedRigidBody());

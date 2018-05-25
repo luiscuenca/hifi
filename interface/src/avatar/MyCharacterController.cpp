@@ -60,7 +60,7 @@ void MyCharacterController::updateDetailedCollisionsShapes() {
                 btVector3 btPoint = glmToBullet(rigPoint);
                 btPoints.push_back(btPoint);
             }
-            _detailedCollisions.addRigidBody(btPoints);
+            _detailedCollisions.addRigidBody(btPoints, CharacterDetailedCollisions::CharacterDetailedRigidBody::type::DYNAMIC);
         }
     }
     updatePhysicsState();
@@ -76,7 +76,7 @@ void MyCharacterController::addOtherAvatarDetailedCollisions(QUuid avatarId, std
     collisions.setCollisionGroup(BULLET_COLLISION_GROUP_OTHER_AVATAR);
     collisions.setCollisionMask(BULLET_COLLISION_GROUP_KINEMATIC);
     for (int i = 0; i < shapes.size(); i++) {
-        collisions.addRigidBody(shapes[i]);
+        collisions.addRigidBody(shapes[i], CharacterDetailedCollisions::CharacterDetailedRigidBody::type::KINEMATIC);
     }
     _otherCharactersDetailedCollisions.insert(std::pair<QUuid, CharacterDetailedCollisions>(avatarId, collisions));
     updatePhysicsState();
