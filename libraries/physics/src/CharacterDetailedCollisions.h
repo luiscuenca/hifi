@@ -23,12 +23,34 @@
 
 class CharacterDetailedCollisions {
 public:
-
-    struct CharacterDetailedRigidBody {
+    struct CharacterDetailedConfig {
         enum delta {
             POSITION = 0,
             FRAME
         };
+        int _forceDeltaType{ delta::FRAME };
+        int _velocityDeltaType{ delta::FRAME };
+        int _impulseDeltaType{ delta::POSITION };
+
+        float _forceDeltaFrameMult{ 0.0f };
+        float _velocityDeltaFrameMult{ 0.5f };
+        float _impulseDeltaFrameMult{ 0.0f };
+
+        float _forceDeltaPositionMult{ 0.0f };
+        float _velocityDeltaPositionMult{ 0.0f };
+        float _impulseDeltaPositionMult{ 0.2f };
+
+        bool _applyLinearVelocity{ true };
+        bool _applyImpulse{ true };
+        bool _applyForce{ false };
+
+        bool _attenuate{ true };
+        float _attenuationValue { 0.2f };
+        float _attenuationThreshold { 0.002f };
+    };
+
+    struct CharacterDetailedRigidBody {
+
         enum type {
             KINEMATIC = 0,
             DYNAMIC
@@ -43,33 +65,21 @@ public:
         CharacterDetailedRigidBody(btVector3& bbox, btVector3& offset);
 
         void setTransform(float deltaTime, btTransform& transform);
+
+        void setConfig(const CharacterDetailedConfig& config) { _config = config; };
+        const CharacterDetailedConfig& getConfig() const { return _config; };
+
         void cleanCollision();
 
         btTransform _lastTransform;
+        btQuaternion _lastDeltaRotation;
         btVector3 _offset;
         btRigidBody* _rigidBody { nullptr };
         btDefaultMotionState* _motionState { nullptr };
 
         int _init { 0 };
         bool _colliding { false };
-
-        int _forceDeltaType { delta::FRAME };
-        int _velocityDeltaType { delta::FRAME };
-        int _impulseDeltaType { delta::POSITION };
-
-        float _forceDeltaFrameMult { 0.0f };
-        float _velocityDeltaFrameMult { 0.5f };
-        float _impulseDeltaFrameMult { 0.0f };
-        
-        float _forceDeltaPositionMult { 0.0f };
-        float _velocityDeltaPositionMult { 0.0f };
-        float _impulseDeltaPositionMult { 0.2f };
-
-        bool _applyLinearVelocity { true };
-        bool _applyImpulse { true };
-        bool _applyForce { false };
-
-        bool _attenuate { true };
+        CharacterDetailedConfig _config;
         int _type { type::KINEMATIC };
     };
 
@@ -78,6 +88,7 @@ public:
         float _distance{ 0.0f };
         glm::vec3 _intersectionPoint;
     };
+
     void setCollisionGroup(int16_t group) { _group = group; };
     void setCollisionMask(int16_t mask) { _mask = mask; };
     void setDynamicsWorld(btDynamicsWorld* world);
@@ -89,8 +100,9 @@ public:
     void removeCollisions();
     void cleanCollisions();
     bool hasRigidBody(int jointIndex);
-    void configurePhysics(const std::vector<float>& args);
-    void getPhysicsArgs(std::vector<float>& args);
+    
+    const CharacterDetailedCollisions::CharacterDetailedConfig& getPhysicsConfig() const;
+    void setPhysicsConfig(const CharacterDetailedCollisions::CharacterDetailedConfig& config);
     RayJointResult rayTest(const btVector3& origin, const btVector3& direction, const btScalar& length, const QVector<uint>& jointsToExclude = QVector<uint>()) const;
     const std::vector<CharacterDetailedRigidBody>& getRigidBodies() const { return _rigidBodies; };
     
@@ -100,7 +112,6 @@ private:
     bool _updated { false };
     int16_t _group { BULLET_COLLISION_GROUP_COLLISIONLESS };
     int16_t _mask { BULLET_COLLISION_MASK_COLLISIONLESS };
-
 };
 
 #endif // hifi_CharacterDetailedCollisions_h

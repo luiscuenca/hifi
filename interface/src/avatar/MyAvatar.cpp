@@ -593,43 +593,24 @@ QVariantMap MyAvatar::getDetailedPhysics() {
     QScriptEngine engine;
     QVariantMap result;
     if (_skeletonModel->isActive()) {
-        std::vector<float> argsVals;
         auto collisions = _characterController.getMyAvatarDetailedCollisions();
-        collisions.getPhysicsArgs(argsVals);
+        auto config = collisions.getPhysicsConfig();
 
-        bool applyForce = (bool)argsVals[0];
-        bool applyImpulse = (bool)argsVals[1];
-        bool applyLinearVelocity = (bool)argsVals[2];
+        result.insert("applyForce", config._applyForce);
+        result.insert("forceDelta", config._forceDeltaType == CharacterDetailedCollisions::CharacterDetailedConfig::delta::FRAME ? config._forceDeltaFrameMult : config._forceDeltaPositionMult);
+        result.insert("forceType", config._forceDeltaType);
 
-        float forceDeltaFrameMult = (float)argsVals[3];
-        float forceDeltaPositionMult = (float)argsVals[4];
-        int forceDeltaType = (int)argsVals[5];
+        result.insert("applyImpulse", config._applyImpulse);
+        result.insert("impulseDelta", config._impulseDeltaType == CharacterDetailedCollisions::CharacterDetailedConfig::delta::FRAME ? config._impulseDeltaFrameMult : config._impulseDeltaPositionMult);
+        result.insert("impulseType", config._impulseDeltaType);
 
-        float impulseDeltaFrameMult = (float)argsVals[6];
-        float impulseDeltaPositionMult = (float)argsVals[7];
-        int impulseDeltaType = (int)argsVals[8];
+        result.insert("applyVelocity", config._applyLinearVelocity);
+        result.insert("velocityDelta", config._velocityDeltaType == CharacterDetailedCollisions::CharacterDetailedConfig::delta::FRAME ? config._velocityDeltaFrameMult : config._velocityDeltaPositionMult);
+        result.insert("velocityType", config._velocityDeltaType);
 
-        float velocityDeltaFrameMult = (float)argsVals[9];
-        float velocityDeltaPositionMult = (float)argsVals[10];
-        int velocityDeltaType = (int)argsVals[11];
-
-        bool attenuate = (bool)argsVals[12];
-
-        result.insert("applyForce", QVariant(applyForce));
-
-
-        result.insert("forceDelta", forceDeltaType == CharacterDetailedCollisions::CharacterDetailedRigidBody::delta::FRAME ? forceDeltaFrameMult : forceDeltaPositionMult);
-        result.insert("forceType", forceDeltaType);
-
-        result.insert("applyImpulse", applyImpulse);
-        result.insert("impulseDelta", impulseDeltaType == CharacterDetailedCollisions::CharacterDetailedRigidBody::delta::FRAME ? impulseDeltaFrameMult : impulseDeltaPositionMult);
-        result.insert("impulseType", impulseDeltaType);
-
-        result.insert("applyLinearVelocity", applyLinearVelocity);
-        result.insert("velocityDelta", velocityDeltaType == CharacterDetailedCollisions::CharacterDetailedRigidBody::delta::FRAME ? velocityDeltaFrameMult : velocityDeltaPositionMult);
-        result.insert("velocityType", velocityDeltaType);
-
-        result.insert("attenuate", attenuate);
+        result.insert("attenuate", config._attenuate);
+        result.insert("attenuationValue", config._attenuationValue);
+        result.insert("attenuationThreshold", config._attenuationThreshold);
 
     }
 
@@ -637,12 +618,14 @@ QVariantMap MyAvatar::getDetailedPhysics() {
 }
 
 void MyAvatar::updateDetailedPhysics(QScriptValue args) {
-
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, "updateDetailedPhysics", Q_ARG(QScriptValue, args));
+        return;
+    }
     if (_skeletonModel->isActive()) {
-        auto collisions = _characterController.getMyAvatarDetailedCollisions();
-        
-        std::vector<float> argsVals(13);
-        
+        CharacterDetailedCollisions::CharacterDetailedConfig config = CharacterDetailedCollisions::CharacterDetailedConfig();
+        auto &collisions = _characterController.getMyAvatarDetailedCollisions();
+
         QScriptValueIterator it(args);
 
         while (it.hasNext()) {
@@ -650,47 +633,43 @@ void MyAvatar::updateDetailedPhysics(QScriptValue args) {
             auto key = it.name();
             
             if (key == "applyForce") {
-                argsVals[0] = (float)it.value().toBool();
+                config._applyForce = it.value().toBool();
             }
             if (key == "applyImpulse") {
-                argsVals[1] = (float)it.value().toBool();
+                config._applyImpulse = it.value().toBool();
             }
-            if (key == "applyLinearVelocity") {
-                argsVals[2] = (float)it.value().toBool();
+            if (key == "applyVelocity") {
+                config._applyLinearVelocity = it.value().toBool();
             }
-            if (key == "forceDeltaFrameMult") {
-                argsVals[3] = (float)it.value().toNumber();
+            if (key == "forceDelta") {
+                config._forceDeltaFrameMult = config._forceDeltaPositionMult = it.value().toNumber();
             }
-            if (key == "forceDeltaPositionMult") {
-                argsVals[4] = (float)it.value().toNumber();
+            if (key == "forceType") {
+                config._forceDeltaType = it.value().toInteger();
             }
-            if (key == "forceDeltaType") {
-                argsVals[5] = (float)it.value().toInteger();
+            if (key == "impulseDelta") {
+                config._impulseDeltaFrameMult = config._impulseDeltaPositionMult = it.value().toNumber();
             }
-            if (key == "impulseDeltaFrameMult") {
-                argsVals[6] = (float)it.value().toNumber();
+            if (key == "impulseType") {
+                config._impulseDeltaType = it.value().toInteger();
             }
-            if (key == "impulseDeltaPositionMult") {
-                argsVals[7] = (float)it.value().toNumber();
+            if (key == "velocityDelta") {
+                config._velocityDeltaFrameMult = config._velocityDeltaPositionMult = it.value().toNumber();
             }
-            if (key == "impulseDeltaType") {
-                argsVals[8] = (float)it.value().toInteger();
-            }
-            if (key == "velocityDeltaFrameMult") {
-                argsVals[9] = (float)it.value().toNumber();
-            }
-            if (key == "velocityDeltaPositionMult") {
-                argsVals[10] = (float)it.value().toNumber();
-            }
-            if (key == "velocityDeltaType") {
-                argsVals[11] = (float)it.value().toInteger();
+            if (key == "velocityType") {
+                config._velocityDeltaType = it.value().toInteger();
             }        
             if (key == "attenuate") {
-                argsVals[12] = (float)it.value().toBool();
+                config._attenuate = (float)it.value().toBool();
+            }
+            if (key == "attenuationValue") {
+                config._attenuationValue = (float)it.value().toNumber();
+            }
+            if (key == "attenuationThreshold") {
+                config._attenuationThreshold = (float)it.value().toNumber();
             }
         }
-
-        collisions.configurePhysics(argsVals);
+        collisions.setPhysicsConfig(config);
     }
 
 }

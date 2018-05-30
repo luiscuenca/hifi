@@ -44,6 +44,7 @@ protected:
 
 CharacterDetailedCollisions::CharacterDetailedRigidBody::CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints, int type) {
     btConvexHullShape* shape = new btConvexHullShape(reinterpret_cast<btScalar*>(shapePoints.data()), (int)shapePoints.size());
+    _config = CharacterDetailedConfig();
     shape->setMargin(DETAILED_COLLISION_RADIUS);
     // _motionState = new btDefaultMotionState();
     _type = type;
@@ -55,6 +56,8 @@ CharacterDetailedCollisions::CharacterDetailedRigidBody::CharacterDetailedRigidB
     _rigidBody->setActivationState(DISABLE_DEACTIVATION);
     _rigidBody->setSleepingThresholds(0.0, 0.0);
     _rigidBody->setFlags(BT_DISABLE_WORLD_GRAVITY);
+
+    qWarning() << "Creating new rigid body";
 }
 
 CharacterDetailedCollisions::CharacterDetailedRigidBody::CharacterDetailedRigidBody(btVector3& bbox, btVector3& offset) {
@@ -91,17 +94,9 @@ void CharacterDetailedCollisions::CharacterDetailedRigidBody::cleanCollision() {
 }
 
 void CharacterDetailedCollisions::CharacterDetailedRigidBody::setTransform(float deltaTime, btTransform& transform) {
-    const float ATTENUATION_VALUE = 0.2f;
-    const float ATTENUATION_THRESHOLD = 0.002f;
-    const int FORCE_POSITION_FRAME_COUNT = 180;
 
-    if (_init < FORCE_POSITION_FRAME_COUNT) {
-        _lastTransform = _rigidBody->getWorldTransform();
-        _init++;
-        _rigidBody->setWorldTransform(transform);
-        return;
-    }
-    
+    const int FORCE_POSITION_FRAME_COUNT = 180;
+        
     btVector3 deltaFrame = transform.getOrigin() - _lastTransform.getOrigin();
     btVector3 deltaPosition = transform.getOrigin() - _rigidBody->getWorldTransform().getOrigin();
     float invDeltaTime = 1.0f / deltaTime;
@@ -111,33 +106,47 @@ void CharacterDetailedCollisions::CharacterDetailedRigidBody::setTransform(float
     auto lastRotation = _rigidBody->getWorldTransform().getRotation();
     auto targetRotation = transform.getRotation();
     auto deltaRotation = targetRotation * lastRotation.inverse();
-    btVector3 angularVelocity(deltaRotation.getAxis() * deltaRotation.getAngle() * invDeltaTime);
+   
+    if (_init < FORCE_POSITION_FRAME_COUNT) {
+        _lastTransform = _rigidBody->getWorldTransform();
+        _init++;
+        _rigidBody->setWorldTransform(transform);
+        _lastDeltaRotation = deltaRotation;
+        return;
+    }
+    if (deltaRotation.dot(_lastDeltaRotation) < 0) {
+        deltaRotation = -deltaRotation;
+    }
+    auto axis = deltaRotation.getAxis();
+    auto angle = deltaRotation.getAngle();
+    btVector3 angularVelocity(axis * angle * invDeltaTime);
 
+    _lastDeltaRotation = deltaRotation;
     _rigidBody->setAngularVelocity(angularVelocity);
 
-    float attenuation = (_attenuate && deltaFrame.length() < ATTENUATION_THRESHOLD) ? ATTENUATION_VALUE : 1.0f;
+    float finalAttenuation = (_config._attenuate && deltaFrame.length() < _config._attenuationThreshold) ? _config._attenuationValue : 1.0f;
 
-    if (_applyLinearVelocity) {
-        if (_velocityDeltaType == delta::FRAME) {
-            _rigidBody->setLinearVelocity(attenuation*_velocityDeltaFrameMult*deltaFrameStep);
+    if (_config._applyLinearVelocity) {
+        if (_config._velocityDeltaType == _config.delta::FRAME) {
+            _rigidBody->setLinearVelocity(finalAttenuation*_config._velocityDeltaFrameMult*deltaFrameStep);
         } else {
-            _rigidBody->setLinearVelocity(attenuation*_velocityDeltaPositionMult*deltaPositionStep);
+            _rigidBody->setLinearVelocity(finalAttenuation*_config._velocityDeltaPositionMult*deltaPositionStep);
         }
     }
 
-    if (_applyImpulse) {
-        if (_impulseDeltaType == delta::FRAME) {
-            _rigidBody->applyCentralImpulse(attenuation*_impulseDeltaFrameMult*deltaFrameStep);
+    if (_config._applyImpulse) {
+        if (_config._impulseDeltaType == _config.delta::FRAME) {
+            _rigidBody->applyCentralImpulse(finalAttenuation*_config._impulseDeltaFrameMult*deltaFrameStep);
         } else {
-            _rigidBody->applyCentralImpulse(attenuation*_impulseDeltaPositionMult*deltaPositionStep);
+            _rigidBody->applyCentralImpulse(finalAttenuation*_config._impulseDeltaPositionMult*deltaPositionStep);
         }
     }
 
-    if (_applyForce) {
-        if (_forceDeltaFrameMult == delta::FRAME) {
-            _rigidBody->applyCentralForce(attenuation*_forceDeltaFrameMult*deltaFrameStep);
+    if (_config._applyForce) {
+        if (_config._forceDeltaFrameMult == _config.delta::FRAME) {
+            _rigidBody->applyCentralForce(finalAttenuation*_config._forceDeltaFrameMult*deltaFrameStep);
         } else {
-            _rigidBody->applyCentralForce(attenuation*_forceDeltaPositionMult*deltaPositionStep);
+            _rigidBody->applyCentralForce(finalAttenuation*_config._forceDeltaPositionMult*deltaPositionStep);
         }
     }
     _lastTransform = transform;
@@ -210,44 +219,20 @@ void CharacterDetailedCollisions::addRigidBody(btVector3& bbox, btVector3& offse
     _rigidBodies.push_back(CharacterDetailedRigidBody(bbox, offsets));
 }
 
-void CharacterDetailedCollisions::getPhysicsArgs(std::vector<float>& args) {
-    args.clear();
-    args.resize(13);
-    if (_rigidBodies.size() > 0) {
-        auto &body = _rigidBodies[0];
-
-        args[0] = body._applyForce;
-        args[1] = body._applyImpulse;
-        args[2] = body._applyLinearVelocity;
-        args[3] = body._forceDeltaFrameMult;
-        args[4] = body._forceDeltaPositionMult;
-        args[5] = body._forceDeltaType;
-        args[6] = body._impulseDeltaFrameMult;
-        args[7] = body._impulseDeltaPositionMult;
-        args[8] = body._impulseDeltaType;
-        args[9] = body._velocityDeltaFrameMult;
-        args[10] = body._velocityDeltaPositionMult;
-        args[11] = body._velocityDeltaType;
-        args[12] = body._attenuate;
+const CharacterDetailedCollisions::CharacterDetailedConfig& CharacterDetailedCollisions::getPhysicsConfig() const {
+    for (int i = 0; i < _rigidBodies.size(); i++) {
+        if (_rigidBodies[i]._rigidBody != NULL) {
+            return _rigidBodies[i].getConfig();
+        }
     }
+    return CharacterDetailedCollisions::CharacterDetailedConfig();
 }
 
-void CharacterDetailedCollisions::configurePhysics(const std::vector<float>& args) {
+void CharacterDetailedCollisions::setPhysicsConfig(const CharacterDetailedCollisions::CharacterDetailedConfig& config) {
     for (int i = 0; i < _rigidBodies.size(); i++) {
-        auto &body = _rigidBodies[i];
-
-        body._applyForce = (bool)args[0];
-        body._applyImpulse = (bool)args[1];
-        body._applyLinearVelocity = (bool)args[2];
-        body._forceDeltaFrameMult = args[3];
-        body._forceDeltaPositionMult = args[4];
-        body._forceDeltaType = (int)args[5];
-        body._impulseDeltaFrameMult = args[6];
-        body._impulseDeltaPositionMult = args[7];
-        body._impulseDeltaType = (int)args[8];
-        body._velocityDeltaFrameMult = args[9];
-        body._velocityDeltaPositionMult = args[10];
-        body._velocityDeltaType = (int)args[11];
+        if (hasRigidBody(i)) {
+            _rigidBodies[i].setConfig(config);
+        }
     }
 }
 

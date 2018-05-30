@@ -51,7 +51,7 @@ public:
     void removeOtherAvatarDetailedCollisions(QUuid avatarId);
     void updateOtherAvatarDetailedCollisons(float deltaTime, QUuid avatarId, std::vector<btTransform>& transforms);
     const CharacterDetailedCollisions& getAvatarDetailedCollisions(QUuid avatarId) const { return _otherCharactersDetailedCollisions.find(avatarId)->second; };
-    const CharacterDetailedCollisions& getMyAvatarDetailedCollisions() const { return _detailedCollisions; };
+    CharacterDetailedCollisions& getMyAvatarDetailedCollisions() { return _detailedCollisions; };
 protected:
     void initRayShotgun(const btCollisionWorld* world);
     void updateMassProperties() override;
