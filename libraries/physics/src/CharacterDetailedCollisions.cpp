@@ -219,13 +219,13 @@ void CharacterDetailedCollisions::addRigidBody(btVector3& bbox, btVector3& offse
     _rigidBodies.push_back(CharacterDetailedRigidBody(bbox, offsets));
 }
 
-const CharacterDetailedCollisions::CharacterDetailedConfig& CharacterDetailedCollisions::getPhysicsConfig() const {
+void CharacterDetailedCollisions::getPhysicsConfig(CharacterDetailedCollisions::CharacterDetailedConfig& config) {
     for (int i = 0; i < _rigidBodies.size(); i++) {
         if (_rigidBodies[i]._rigidBody != NULL) {
-            return _rigidBodies[i].getConfig();
+            config = _rigidBodies[i].getConfig();
+            return;
         }
     }
-    return CharacterDetailedCollisions::CharacterDetailedConfig();
 }
 
 void CharacterDetailedCollisions::setPhysicsConfig(const CharacterDetailedCollisions::CharacterDetailedConfig& config) {

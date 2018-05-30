@@ -594,7 +594,8 @@ QVariantMap MyAvatar::getDetailedPhysics() {
     QVariantMap result;
     if (_skeletonModel->isActive()) {
         auto collisions = _characterController.getMyAvatarDetailedCollisions();
-        auto config = collisions.getPhysicsConfig();
+        CharacterDetailedCollisions::CharacterDetailedConfig config;
+        collisions.getPhysicsConfig(config);
 
         result.insert("applyForce", config._applyForce);
         result.insert("forceDelta", config._forceDeltaType == CharacterDetailedCollisions::CharacterDetailedConfig::delta::FRAME ? config._forceDeltaFrameMult : config._forceDeltaPositionMult);
