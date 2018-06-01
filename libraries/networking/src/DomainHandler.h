@@ -97,7 +97,7 @@ public:
 
     int getCheckInPacketsSinceLastReply() const { return _checkInPacketsSinceLastReply; }
     void sentCheckInPacket();
-    void domainListReceived() { _checkInPacketsSinceLastReply = 0; }
+    void clearPendingCheckins() { _checkInPacketsSinceLastReply = 0; }
 
     /**jsdoc
      * <p>The reasons that you may be refused connection to a domain are defined by numeric values:</p>
@@ -137,7 +137,7 @@ public:
      *     </tr>
      *   </tbody>
      * </table>
-     * @typedef Window.ConnectionRefusedReason
+     * @typedef {number} Window.ConnectionRefusedReason
      */
     enum class ConnectionRefusedReason : uint8_t {
         Unknown,

@@ -144,6 +144,7 @@
 #include <trackers/EyeTracker.h>
 #include <avatars-renderer/ScriptAvatar.h>
 #include <RenderableEntityItem.h>
+#include <procedural/ProceduralSkybox.h>
 
 #include "AudioClient.h"
 #include "audio/AudioScope.h"
@@ -218,6 +219,8 @@
 
 #include "webbrowser/WebBrowserSuggestionsEngine.h"
 #include <DesktopPreviewProvider.h>
+
+#include "AboutUtil.h"
 
 #if defined(Q_OS_WIN)
 #include <VersionHelpers.h>
@@ -375,7 +378,7 @@ Setting::Handle<int> maxOctreePacketsPerSecond("maxOctreePPS", DEFAULT_MAX_OCTRE
 static const QString MARKETPLACE_CDN_HOSTNAME = "mpassets.highfidelity.com";
 static const int INTERVAL_TO_CHECK_HMD_WORN_STATUS = 500; // milliseconds
 static const QString DESKTOP_DISPLAY_PLUGIN_NAME = "Desktop";
-
+static const QString ACTIVE_DISPLAY_PLUGIN_SETTING_NAME = "activeDisplayPlugin";
 static const QString SYSTEM_TABLET = "com.highfidelity.interface.tablet.system";
 
 const std::vector<std::pair<QString, Application::AcceptURLMethod>> Application::_acceptedExtensions {
@@ -714,7 +717,7 @@ private:
  *     <tr><td><code>NavigationFocused</code></td><td>number</td><td>number</td><td><em>Not used.</em></td></tr>
  *   </tbody>
  * </table>
- * @typedef Controller.Hardware-Application
+ * @typedef {object} Controller.Hardware-Application
  */
 
 static const QString STATE_IN_HMD = "InHMD";
@@ -734,9 +737,9 @@ extern InputPluginList getInputPlugins();
 extern void saveInputPluginSettings(const InputPluginList& plugins);
 
 // Parameters used for running tests from teh command line
-const QString TEST_SCRIPT_COMMAND { "--testScript" };
-const QString TEST_QUIT_WHEN_FINISHED_OPTION { "quitWhenFinished" };
-const QString TEST_SNAPSHOT_LOCATION_COMMAND { "--testSnapshotLocation" };
+const QString TEST_SCRIPT_COMMAND{ "--testScript" };
+const QString TEST_QUIT_WHEN_FINISHED_OPTION{ "quitWhenFinished" };
+const QString TEST_RESULTS_LOCATION_COMMAND{ "--testResultsLocation" };
 
 bool setupEssentials(int& argc, char** argv, bool runningMarkerExisted) {
     const char** constArgv = const_cast<const char**>(argv);
@@ -850,7 +853,11 @@ bool setupEssentials(int& argc, char** argv, bool runningMarkerExisted) {
     DependencyManager::set<Cursor::Manager>();
     DependencyManager::set<VirtualPad::Manager>();
     DependencyManager::set<DesktopPreviewProvider>();
+#if defined(Q_OS_ANDROID)
+    DependencyManager::set<AccountManager>(); // use the default user agent getter
+#else
     DependencyManager::set<AccountManager>(std::bind(&Application::getUserAgent, qApp));
+#endif
     DependencyManager::set<StatTracker>();
     DependencyManager::set<ScriptEngines>(ScriptEngine::CLIENT_SCRIPT);
     DependencyManager::set<ScriptInitializerMixin, NativeScriptInitializers>();
@@ -1014,22 +1021,25 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
 
                 // If the URL scheme is http(s) or ftp, then use as is, else - treat it as a local file
                 // This is done so as not break previous command line scripts
-                if (testScriptPath.left(URL_SCHEME_HTTP.length()) == URL_SCHEME_HTTP || testScriptPath.left(URL_SCHEME_FTP.length()) == URL_SCHEME_FTP) {
+                if (testScriptPath.left(URL_SCHEME_HTTP.length()) == URL_SCHEME_HTTP ||
+                    testScriptPath.left(URL_SCHEME_FTP.length()) == URL_SCHEME_FTP) {
+                    
                     setProperty(hifi::properties::TEST, QUrl::fromUserInput(testScriptPath));
                 } else if (QFileInfo(testScriptPath).exists()) {
                     setProperty(hifi::properties::TEST, QUrl::fromLocalFile(testScriptPath));
                 }
 
-				// quite when finished parameter must directly follow the test script
+                // quite when finished parameter must directly follow the test script
                 if ((i + 2) < args.size() && args.at(i + 2) == TEST_QUIT_WHEN_FINISHED_OPTION) {
                     quitWhenFinished = true;
                 }
-            } else if (args.at(i) == TEST_SNAPSHOT_LOCATION_COMMAND) {
+            } else if (args.at(i) == TEST_RESULTS_LOCATION_COMMAND) {
                 // Set test snapshot location only if it is a writeable directory
-                QString pathname(args.at(i + 1));
-                QFileInfo fileInfo(pathname);
+                QString path(args.at(i + 1));
+
+                QFileInfo fileInfo(path);
                 if (fileInfo.isDir() && fileInfo.isWritable()) {
-                    testSnapshotLocation = pathname;
+                    TestScriptingInterface::getInstance()->setTestResultsLocation(path);
                 }
             }
         }
@@ -1230,7 +1240,13 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
             nodeList.data(), SLOT(reset()));
 
     auto dialogsManager = DependencyManager::get<DialogsManager>();
+#if defined(Q_OS_ANDROID)
+    connect(accountManager.data(), &AccountManager::authRequired, this, []() {
+        AndroidHelper::instance().showLoginDialog();
+    });
+#else
     connect(accountManager.data(), &AccountManager::authRequired, dialogsManager.data(), &DialogsManager::showLoginDialog);
+#endif
     connect(accountManager.data(), &AccountManager::usernameChanged, this, &Application::updateWindowTitle);
     connect(accountManager.data(), &AccountManager::usernameChanged, [](QString username){
         setCrashAnnotation("username", username.toStdString());
@@ -1349,10 +1365,14 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     QCoreApplication::processEvents();
     _glWidget->createContext();
 
-    // Create the main thread context, the GPU backend, and the display plugins
+    // Create the main thread context, the GPU backend
     initializeGL();
-    DependencyManager::get<TextureCache>()->setGPUContext(_gpuContext);
-    qCDebug(interfaceapp, "Initialized Display.");
+    qCDebug(interfaceapp, "Initialized GL");
+
+    // Initialize the display plugin architecture 
+    initializeDisplayPlugins();
+    qCDebug(interfaceapp, "Initialized Display");
+
     // Create the rendering engine.  This can be slow on some machines due to lots of 
     // GPU pipeline creation.
     initializeRenderEngine();
@@ -2244,6 +2264,13 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     _pendingRenderEvent = false;
 
     qCDebug(interfaceapp) << "Metaverse session ID is" << uuidStringWithoutCurlyBraces(accountManager->getSessionID());
+
+#if defined(Q_OS_ANDROID)
+    AndroidHelper::instance().init();
+    connect(&AndroidHelper::instance(), &AndroidHelper::enterBackground, this, &Application::enterBackground);
+    connect(&AndroidHelper::instance(), &AndroidHelper::enterForeground, this, &Application::enterForeground);
+    AndroidHelper::instance().notifyLoadComplete();
+#endif
 }
 
 void Application::updateVerboseLogging() {
@@ -2253,8 +2280,11 @@ void Application::updateVerboseLogging() {
     }
     bool enable = menu->isOptionChecked(MenuOption::VerboseLogging);
 
-    QString rules = "*.debug=%1\n"
-        "*.info=%1";
+    QString rules =
+        "hifi.*.debug=%1\n"
+        "hifi.*.info=%1\n"
+        "hifi.audio-stream.debug=false\n"
+        "hifi.audio-stream.info=false";
     rules = rules.arg(enable ? "true" : "false");
     QLoggingCategory::setFilterRules(rules);
 }
@@ -2369,6 +2399,10 @@ void Application::onAboutToQuit() {
         }
     }
 
+    // The active display plugin needs to be loaded before the menu system is active, 
+    // so its persisted explicitly here
+    Setting::Handle<QString>{ ACTIVE_DISPLAY_PLUGIN_SETTING_NAME }.set(getActiveDisplayPlugin()->getName());
+
     getActiveDisplayPlugin()->deactivate();
     if (_autoSwitchDisplayModeSupportedHMDPlugin
         && _autoSwitchDisplayModeSupportedHMDPlugin->isSessionActive()) {
@@ -2458,6 +2492,7 @@ void Application::cleanupBeforeQuit() {
     }
 
     _window->saveGeometry();
+    _gpuContext->shutdown();
 
     // Destroy third party processes after scripts have finished using them.
 #ifdef HAVE_DDE
@@ -2608,10 +2643,84 @@ void Application::initializeGL() {
     _glWidget->makeCurrent();
     _gpuContext = std::make_shared<gpu::Context>();
 
+    DependencyManager::get<TextureCache>()->setGPUContext(_gpuContext);
+
     // Restore the default main thread context
     _offscreenContext->makeCurrent();
+}
 
-    updateDisplayMode();
+static const QString SPLASH_SKYBOX{ "{\"ProceduralEntity\":{ \"version\":2, \"shaderUrl\":\"qrc:///shaders/splashSkybox.frag\" } }" };
+
+void Application::initializeDisplayPlugins() {
+    auto displayPlugins = PluginManager::getInstance()->getDisplayPlugins();
+    Setting::Handle<QString> activeDisplayPluginSetting{ ACTIVE_DISPLAY_PLUGIN_SETTING_NAME, displayPlugins.at(0)->getName() };
+    auto lastActiveDisplayPluginName = activeDisplayPluginSetting.get();
+
+    auto defaultDisplayPlugin = displayPlugins.at(0);
+    // Once time initialization code 
+    DisplayPluginPointer targetDisplayPlugin;
+    foreach(auto displayPlugin, displayPlugins) {
+        displayPlugin->setContext(_gpuContext);
+        if (displayPlugin->getName() == lastActiveDisplayPluginName) {
+            targetDisplayPlugin = displayPlugin;
+        }
+        QObject::connect(displayPlugin.get(), &DisplayPlugin::recommendedFramebufferSizeChanged,
+            [this](const QSize& size) { resizeGL(); });
+        QObject::connect(displayPlugin.get(), &DisplayPlugin::resetSensorsRequested, this, &Application::requestReset);
+    }
+
+    // The default display plugin needs to be activated first, otherwise the display plugin thread
+    // may be launched by an external plugin, which is bad 
+    setDisplayPlugin(defaultDisplayPlugin);
+
+    // Now set the desired plugin if it's not the same as the default plugin
+    if (targetDisplayPlugin != defaultDisplayPlugin) {
+        setDisplayPlugin(targetDisplayPlugin);
+    }
+
+    // Submit a default frame to render until the engine starts up
+    updateRenderArgs(0.0f);
+
+    _offscreenContext->makeCurrent();
+
+#define ENABLE_SPLASH_FRAME 0
+#if ENABLE_SPLASH_FRAME
+    {
+        QMutexLocker viewLocker(&_renderArgsMutex);
+
+        if (_appRenderArgs._isStereo) {
+            _gpuContext->enableStereo(true);
+            _gpuContext->setStereoProjections(_appRenderArgs._eyeProjections);
+            _gpuContext->setStereoViews(_appRenderArgs._eyeOffsets);
+        }
+
+        // Frame resources
+        auto framebufferCache = DependencyManager::get<FramebufferCache>();
+        gpu::FramebufferPointer finalFramebuffer = framebufferCache->getFramebuffer();
+        std::shared_ptr<ProceduralSkybox> procedural = std::make_shared<ProceduralSkybox>();
+        procedural->parse(SPLASH_SKYBOX);
+
+        _gpuContext->beginFrame(_appRenderArgs._view, _appRenderArgs._headPose);
+        gpu::doInBatch("splashFrame", _gpuContext, [&](gpu::Batch& batch) {
+            batch.resetStages();
+            batch.enableStereo(false);
+            batch.setFramebuffer(finalFramebuffer);
+            batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, { 0, 0, 0, 1 });
+            batch.enableSkybox(true);
+            batch.enableStereo(_appRenderArgs._isStereo);
+            batch.setViewportTransform({ 0, 0, finalFramebuffer->getSize() });
+            procedural->render(batch, _appRenderArgs._renderArgs.getViewFrustum());
+        });
+        auto frame = _gpuContext->endFrame();
+        frame->frameIndex = 0;
+        frame->framebuffer = finalFramebuffer;
+        frame->pose = _appRenderArgs._headPose;
+        frame->framebufferRecycler = [framebufferCache, procedural](const gpu::FramebufferPointer& framebuffer) {
+            framebufferCache->releaseFramebuffer(framebuffer);
+        };
+        _displayPlugin->submitFrame(frame);
+    }
+#endif
 }
 
 void Application::initializeRenderEngine() {
@@ -2635,6 +2744,7 @@ void Application::initializeRenderEngine() {
 }
 
 extern void setupPreferences();
+static void addDisplayPluginToMenu(const DisplayPluginPointer& displayPlugin, int index, bool active = false);
 
 void Application::initializeUi() {
     // Build a shared canvas / context for the Chromium processes
@@ -2759,6 +2869,13 @@ void Application::initializeUi() {
         }
         if (TouchscreenVirtualPadDevice::NAME == inputPlugin->getName()) {
             _touchscreenVirtualPadDevice = std::dynamic_pointer_cast<TouchscreenVirtualPadDevice>(inputPlugin);
+#if defined(Q_OS_ANDROID)
+            auto& virtualPadManager = VirtualPad::Manager::instance();
+            connect(&virtualPadManager, &VirtualPad::Manager::hapticFeedbackRequested,
+                    this, [](int duration) {
+                        AndroidHelper::instance().performHapticFeedback(duration);
+                    });
+#endif
         }
     }
 
@@ -2776,9 +2893,26 @@ void Application::initializeUi() {
     offscreenSurfaceCache->reserve(TabletScriptingInterface::QML, 1);
     offscreenSurfaceCache->reserve(Web3DOverlay::QML, 2);
 
-    // Now that the menu is instantiated, ensure the display plugin menu is properly updated
-    updateDisplayMode();
     flushMenuUpdates();
+
+    // Now that the menu is instantiated, ensure the display plugin menu is properly updated
+    {
+        auto displayPlugins = PluginManager::getInstance()->getDisplayPlugins();
+        // first sort the plugins into groupings: standard, advanced, developer
+        std::stable_sort(displayPlugins.begin(), displayPlugins.end(),
+            [](const DisplayPluginPointer& a, const DisplayPluginPointer& b)->bool { return a->getGrouping() < b->getGrouping(); });
+
+        int dpIndex = 1;
+        // concatenate the groupings into a single list in the order: standard, advanced, developer
+        for(const auto& displayPlugin : displayPlugins) {
+            addDisplayPluginToMenu(displayPlugin, dpIndex, _displayPlugin == displayPlugin);
+            dpIndex++;
+        }
+
+        // after all plugins have been added to the menu, add a separator to the menu
+        auto parent = getPrimaryMenu()->getMenu(MenuOption::OutputMenu);
+        parent->addSeparator();
+    }
 
     // The display plugins are created before the menu now, so we need to do this here to hide the menu bar
     // now that it exists
@@ -2864,6 +2998,7 @@ void Application::onDesktopRootContextCreated(QQmlContext* surfaceContext) {
     surfaceContext->setContextProperty("Selection", DependencyManager::get<SelectionScriptingInterface>().data());
     surfaceContext->setContextProperty("ContextOverlay", DependencyManager::get<ContextOverlayInterface>().data());
     surfaceContext->setContextProperty("Wallet", DependencyManager::get<WalletScriptingInterface>().data());
+    surfaceContext->setContextProperty("HiFiAbout", AboutUtil::getInstance());
 
     if (auto steamClient = PluginManager::getInstance()->getSteamClientPlugin()) {
         surfaceContext->setContextProperty("Steam", new SteamScriptingInterface(engine, steamClient.get()));
@@ -2877,9 +3012,11 @@ void Application::onDesktopRootItemCreated(QQuickItem* rootItem) {
     auto surfaceContext = DependencyManager::get<OffscreenUi>()->getSurfaceContext();
     surfaceContext->setContextProperty("Stats", Stats::getInstance());
 
+#if !defined(Q_OS_ANDROID)
     auto offscreenUi = DependencyManager::get<OffscreenUi>();
     auto qml = PathUtils::qmlUrl("AvatarInputsBar.qml");
     offscreenUi->show(qml, "AvatarInputsBar");
+#endif
 }
 
 void Application::updateCamera(RenderArgs& renderArgs, float deltaTime) {
@@ -2930,7 +3067,7 @@ void Application::updateCamera(RenderArgs& renderArgs, float deltaTime) {
             _thirdPersonHMDCameraBoomValid = false;
 
             _myCamera.setOrientation(myAvatar->getHead()->getOrientation());
-            if (Menu::getInstance()->isOptionChecked(MenuOption::CenterPlayerInView)) {
+            if (isOptionChecked(MenuOption::CenterPlayerInView)) {
                 _myCamera.setPosition(myAvatar->getDefaultEyePosition()
                     + _myCamera.getOrientation() * boomOffset);
             }
@@ -3107,7 +3244,8 @@ void Application::resizeGL() {
     // Set the desired FBO texture size. If it hasn't changed, this does nothing.
     // Otherwise, it must rebuild the FBOs
     uvec2 framebufferSize = displayPlugin->getRecommendedRenderSize();
-    uvec2 renderSize = uvec2(vec2(framebufferSize) * getRenderResolutionScale());
+    float renderResolutionScale = getRenderResolutionScale();
+    uvec2 renderSize = uvec2(vec2(framebufferSize) * renderResolutionScale);
     if (_renderResolution != renderSize) {
         _renderResolution = renderSize;
         DependencyManager::get<FramebufferCache>()->setFrameBufferSize(fromGlm(renderSize));
@@ -3124,6 +3262,7 @@ void Application::resizeGL() {
     }
 
     DependencyManager::get<OffscreenUi>()->resize(fromGlm(displayPlugin->getRecommendedUiSize()));
+    displayPlugin->setRenderResolutionScale(renderResolutionScale);
 }
 
 void Application::handleSandboxStatus(QNetworkReply* reply) {
@@ -3181,19 +3320,18 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     // If this is a first run we short-circuit the address passed in
     if (firstRun.get()) {
-#if defined(Q_OS_ANDROID)
-        qCDebug(interfaceapp) << "First run... going to" << qPrintable(addressLookupString.isEmpty() ? QString("default location") : addressLookupString);
-        DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
-#else
+#if !defined(Q_OS_ANDROID)
         DependencyManager::get<AddressManager>()->goToEntry();
         sentTo = SENT_TO_ENTRY;
 #endif
         firstRun.set(false);
 
     } else {
+#if !defined(Q_OS_ANDROID)
         qCDebug(interfaceapp) << "Not first run... going to" << qPrintable(addressLookupString.isEmpty() ? QString("previous location") : addressLookupString);
         DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
         sentTo = SENT_TO_PREVIOUS_LOCATION;
+#endif
     }
 
     UserActivityLogger::getInstance().logAction("startup_sent_to", {
@@ -3507,7 +3645,6 @@ void Application::keyPressEvent(QKeyEvent* event) {
     _keysPressed.insert(event->key());
 
     _controllerScriptingInterface->emitKeyPressEvent(event); // send events to any registered scripts
-
     // if one of our scripts have asked to capture this event, then stop processing it
     if (_controllerScriptingInterface->isKeyCaptured(event)) {
         return;
@@ -3585,9 +3722,17 @@ void Application::keyPressEvent(QKeyEvent* event) {
                 if (isShifted && isMeta) {
                     Menu::getInstance()->triggerOption(MenuOption::Log);
                 } else if (isMeta) {
-                    Menu::getInstance()->triggerOption(MenuOption::AddressBar);
+                    auto dialogsManager = DependencyManager::get<DialogsManager>();
+                    dialogsManager->toggleAddressBar();
                 } else if (isShifted) {
                     Menu::getInstance()->triggerOption(MenuOption::LodTools);
+                }
+                break;
+
+            case Qt::Key_R:
+                if (isMeta && !event->isAutoRepeat()) {
+                    DependencyManager::get<ScriptEngines>()->reloadAllScripts();
+                    DependencyManager::get<OffscreenUi>()->clearCache();
                 }
                 break;
 
@@ -3618,13 +3763,16 @@ void Application::keyPressEvent(QKeyEvent* event) {
                 AudioInjectorOptions options;
                 options.localOnly = true;
                 options.stereo = true;
-
-                if (_snapshotSoundInjector) {
-                    _snapshotSoundInjector->setOptions(options);
-                    _snapshotSoundInjector->restart();
-                } else {
-                    QByteArray samples = _snapshotSound->getByteArray();
-                    _snapshotSoundInjector = AudioInjector::playSound(samples, options);
+                Setting::Handle<bool> notificationSounds{ MenuOption::NotificationSounds, true};
+                Setting::Handle<bool> notificationSoundSnapshot{ MenuOption::NotificationSoundsSnapshot, true};
+                if (notificationSounds.get() && notificationSoundSnapshot.get()) {
+                    if (_snapshotSoundInjector) {
+                        _snapshotSoundInjector->setOptions(options);
+                        _snapshotSoundInjector->restart();
+                    } else {
+                        QByteArray samples = _snapshotSound->getByteArray();
+                        _snapshotSoundInjector = AudioInjector::playSound(samples, options);
+                    }
                 }
                 takeSnapshot(true);
                 break;
@@ -3760,7 +3908,7 @@ void Application::keyReleaseEvent(QKeyEvent* event) {
 #if defined(Q_OS_ANDROID)
     if (event->key() == Qt::Key_Back) {
         event->accept();
-        openAndroidActivity("Home");
+        AndroidHelper::instance().requestActivity("Home", false);
     }
 #endif
     _controllerScriptingInterface->emitKeyReleaseEvent(event); // send events to any registered scripts
@@ -4082,7 +4230,7 @@ bool Application::acceptSnapshot(const QString& urlString) {
     QUrl url(urlString);
     QString snapshotPath = url.toLocalFile();
 
-    SnapshotMetaData* snapshotData = Snapshot::parseSnapshotData(snapshotPath);
+    SnapshotMetaData* snapshotData = DependencyManager::get<Snapshot>()->parseSnapshotData(snapshotPath);
     if (snapshotData) {
         if (!snapshotData->getURL().toString().isEmpty()) {
             DependencyManager::get<AddressManager>()->handleLookupString(snapshotData->getURL().toString());
@@ -4493,12 +4641,6 @@ void Application::idle() {
 
     _overlayConductor.update(secondsSinceLastUpdate);
 
-    auto myAvatar = getMyAvatar();
-    if (_myCamera.getMode() == CAMERA_MODE_FIRST_PERSON || _myCamera.getMode() == CAMERA_MODE_THIRD_PERSON) {
-        Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPerson, myAvatar->getBoomLength() <= MyAvatar::ZOOM_MIN);
-        Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, !(myAvatar->getBoomLength() <= MyAvatar::ZOOM_MIN));
-        cameraMenuChanged();
-    }
     _gameLoopCounter.increment();
 }
 
@@ -4991,7 +5133,7 @@ void Application::toggleOverlays() {
 
 void Application::setOverlaysVisible(bool visible) {
     auto menu = Menu::getInstance();
-    menu->setIsOptionChecked(MenuOption::Overlays, true);
+    menu->setIsOptionChecked(MenuOption::Overlays, visible);
 }
 
 void Application::centerUI() {
@@ -5045,6 +5187,21 @@ void Application::cameraModeChanged() {
     cameraMenuChanged();
 }
 
+void Application::changeViewAsNeeded(float boomLength) {
+    // Switch between first and third person views as needed
+    // This is called when the boom length has changed
+    bool boomLengthGreaterThanMinimum = (boomLength > MyAvatar::ZOOM_MIN);
+
+    if (_myCamera.getMode() == CAMERA_MODE_FIRST_PERSON && boomLengthGreaterThanMinimum) {
+        Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPerson, false);
+        Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, true);
+        cameraMenuChanged();
+    } else if (_myCamera.getMode() == CAMERA_MODE_THIRD_PERSON && !boomLengthGreaterThanMinimum) {
+        Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPerson, true);
+        Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, false);
+        cameraMenuChanged();
+    }
+}
 
 void Application::cameraMenuChanged() {
     auto menu = Menu::getInstance();
@@ -5732,6 +5889,32 @@ void Application::update(float deltaTime) {
     }
 
 
+    updateRenderArgs(deltaTime);
+
+    // HACK
+    // load the view frustum
+    // FIXME: This preDisplayRender call is temporary until we create a separate render::scene for the mirror rendering.
+    // Then we can move this logic into the Avatar::simulate call.
+    myAvatar->preDisplaySide(&_appRenderArgs._renderArgs);
+
+
+    {
+        PerformanceTimer perfTimer("limitless");
+        AnimDebugDraw::getInstance().update();
+    }
+
+    {
+        PerformanceTimer perfTimer("limitless");
+        DependencyManager::get<LimitlessVoiceRecognitionScriptingInterface>()->update();
+    }
+
+    { // Game loop is done, mark the end of the frame for the scene transactions and the render loop to take over
+        PerformanceTimer perfTimer("enqueueFrame");
+        getMain3DScene()->enqueueFrame();
+    }
+}
+
+void Application::updateRenderArgs(float deltaTime) {
     editRenderArgs([this, deltaTime](AppRenderArgs& appRenderArgs) {
         PerformanceTimer perfTimer("editRenderArgs");
         appRenderArgs._headPose = getHMDSensorPose();
@@ -5755,9 +5938,9 @@ void Application::update(float deltaTime) {
                 QMutexLocker viewLocker(&_viewMutex);
                 // adjust near clip plane to account for sensor scaling.
                 auto adjustedProjection = glm::perspective(glm::radians(_fieldOfView.get()),
-                                                           getActiveDisplayPlugin()->getRecommendedAspectRatio(),
-                                                           DEFAULT_NEAR_CLIP * sensorToWorldScale,
-                                                           DEFAULT_FAR_CLIP);
+                    getActiveDisplayPlugin()->getRecommendedAspectRatio(),
+                    DEFAULT_NEAR_CLIP * sensorToWorldScale,
+                    DEFAULT_FAR_CLIP);
                 _viewFrustum.setProjection(adjustedProjection);
                 _viewFrustum.calculate();
             }
@@ -5773,8 +5956,14 @@ void Application::update(float deltaTime) {
         }
         {
             PROFILE_RANGE(render, "/resizeGL");
-            PerformanceWarning::setSuppressShortTimings(Menu::getInstance()->isOptionChecked(MenuOption::SuppressShortTimings));
-            bool showWarnings = Menu::getInstance()->isOptionChecked(MenuOption::PipelineWarnings);
+            bool showWarnings = false;
+            bool suppressShortTimings = false;
+            auto menu = Menu::getInstance();
+            if (menu) {
+                suppressShortTimings = menu->isOptionChecked(MenuOption::SuppressShortTimings);
+                showWarnings = menu->isOptionChecked(MenuOption::PipelineWarnings);
+            }
+            PerformanceWarning::setSuppressShortTimings(suppressShortTimings);
             PerformanceWarning warn(showWarnings, "Application::paintGL()");
             resizeGL();
         }
@@ -5830,12 +6019,6 @@ void Application::update(float deltaTime) {
             }
         }
 
-        // HACK
-        // load the view frustum
-        // FIXME: This preDisplayRender call is temporary until we create a separate render::scene for the mirror rendering.
-        // Then we can move this logic into the Avatar::simulate call.
-        myAvatar->preDisplaySide(&appRenderArgs._renderArgs);
-
         {
             QMutexLocker viewLocker(&_viewMutex);
             _myCamera.loadViewFrustum(_displayViewFrustum);
@@ -5847,21 +6030,6 @@ void Application::update(float deltaTime) {
             appRenderArgs._renderArgs.setViewFrustum(_displayViewFrustum);
         }
     });
-
-    {
-        PerformanceTimer perfTimer("limitless");
-        AnimDebugDraw::getInstance().update();
-    }
-
-    {
-        PerformanceTimer perfTimer("limitless");
-        DependencyManager::get<LimitlessVoiceRecognitionScriptingInterface>()->update();
-    }
-
-    { // Game loop is done, mark the end of the frame for the scene transactions and the render loop to take over
-        PerformanceTimer perfTimer("enqueueFrame");
-        getMain3DScene()->enqueueFrame();
-    }
 }
 
 void Application::queryAvatars() {
@@ -6465,8 +6633,7 @@ void Application::registerScriptEngineWithApplicationServices(ScriptEnginePointe
     scriptEngine->registerGlobalObject("ContextOverlay", DependencyManager::get<ContextOverlayInterface>().data());
     scriptEngine->registerGlobalObject("Wallet", DependencyManager::get<WalletScriptingInterface>().data());
     scriptEngine->registerGlobalObject("AddressManager", DependencyManager::get<AddressManager>().data());
-
-    scriptEngine->registerGlobalObject("App", this);
+    scriptEngine->registerGlobalObject("HifiAbout", AboutUtil::getInstance());
 
     qScriptRegisterMetaType(scriptEngine.data(), OverlayIDtoScriptValue, OverlayIDfromScriptValue);
 
@@ -6784,12 +6951,7 @@ void Application::showDialog(const QUrl& widgetUrl, const QUrl& tabletUrl, const
         if (onTablet) {
             toggleTabletUI(true);
         }
-    }
-
-    if (!onTablet) {
-        DependencyManager::get<OffscreenUi>()->show(widgetUrl, name);
-    }
-    if (tablet->getToolbarMode()) {
+    } else {
         DependencyManager::get<OffscreenUi>()->show(widgetUrl, name);
     }
 }
@@ -7411,7 +7573,6 @@ void Application::loadLODToolsDialog() {
     }
 }
 
-
 void Application::loadEntityStatisticsDialog() {
     auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
     auto tablet = dynamic_cast<TabletProxy*>(tabletScriptingInterface->getTablet(SYSTEM_TABLET));
@@ -7475,11 +7636,15 @@ void Application::loadAvatarBrowser() const {
 void Application::takeSnapshot(bool notify, bool includeAnimated, float aspectRatio, const QString& filename) {
     postLambdaEvent([notify, includeAnimated, aspectRatio, filename, this] {
         // Get a screenshot and save it
-        QString path = Snapshot::saveSnapshot(getActiveDisplayPlugin()->getScreenshot(aspectRatio), filename, testSnapshotLocation);
+        QString path = DependencyManager::get<Snapshot>()->saveSnapshot(getActiveDisplayPlugin()->getScreenshot(aspectRatio), filename,
+                                              TestScriptingInterface::getInstance()->getTestResultsLocation());
+
         // If we're not doing an animated snapshot as well...
         if (!includeAnimated) {
-            // Tell the dependency manager that the capture of the still snapshot has taken place.
-            emit DependencyManager::get<WindowScriptingInterface>()->stillSnapshotTaken(path, notify);
+            if (!path.isEmpty()) {
+                // Tell the dependency manager that the capture of the still snapshot has taken place.
+                emit DependencyManager::get<WindowScriptingInterface>()->stillSnapshotTaken(path, notify);
+            }
         } else if (!SnapshotAnimated::isAlreadyTakingSnapshotAnimated()) {
             // Get an animated GIF snapshot and save it
             SnapshotAnimated::saveSnapshotAnimated(path, aspectRatio, qApp, DependencyManager::get<WindowScriptingInterface>());
@@ -7489,28 +7654,40 @@ void Application::takeSnapshot(bool notify, bool includeAnimated, float aspectRa
 
 void Application::takeSecondaryCameraSnapshot(const QString& filename) {
     postLambdaEvent([filename, this] {
-        QString snapshotPath = Snapshot::saveSnapshot(getActiveDisplayPlugin()->getSecondaryCameraScreenshot(), filename, testSnapshotLocation);
+        QString snapshotPath = DependencyManager::get<Snapshot>()->saveSnapshot(getActiveDisplayPlugin()->getSecondaryCameraScreenshot(), filename,
+                                                      TestScriptingInterface::getInstance()->getTestResultsLocation());
+
         emit DependencyManager::get<WindowScriptingInterface>()->stillSnapshotTaken(snapshotPath, true);
+    });
+}
+
+void Application::takeSecondaryCamera360Snapshot(const glm::vec3& cameraPosition, const bool& cubemapOutputFormat, const QString& filename) {
+    postLambdaEvent([filename, cubemapOutputFormat, cameraPosition] {
+        DependencyManager::get<Snapshot>()->save360Snapshot(cameraPosition, cubemapOutputFormat, filename);
     });
 }
 
 void Application::shareSnapshot(const QString& path, const QUrl& href) {
     postLambdaEvent([path, href] {
         // not much to do here, everything is done in snapshot code...
-        Snapshot::uploadSnapshot(path, href);
+        DependencyManager::get<Snapshot>()->uploadSnapshot(path, href);
     });
 }
 
 float Application::getRenderResolutionScale() const {
-    if (Menu::getInstance()->isOptionChecked(MenuOption::RenderResolutionOne)) {
+    auto menu = Menu::getInstance();
+    if (!menu) {
         return 1.0f;
-    } else if (Menu::getInstance()->isOptionChecked(MenuOption::RenderResolutionTwoThird)) {
+    }
+    if (menu->isOptionChecked(MenuOption::RenderResolutionOne)) {
+        return 1.0f;
+    } else if (menu->isOptionChecked(MenuOption::RenderResolutionTwoThird)) {
         return 0.666f;
-    } else if (Menu::getInstance()->isOptionChecked(MenuOption::RenderResolutionHalf)) {
+    } else if (menu->isOptionChecked(MenuOption::RenderResolutionHalf)) {
         return 0.5f;
-    } else if (Menu::getInstance()->isOptionChecked(MenuOption::RenderResolutionThird)) {
+    } else if (menu->isOptionChecked(MenuOption::RenderResolutionThird)) {
         return 0.333f;
-    } else if (Menu::getInstance()->isOptionChecked(MenuOption::RenderResolutionQuarter)) {
+    } else if (menu->isOptionChecked(MenuOption::RenderResolutionQuarter)) {
         return 0.25f;
     } else {
         return 1.0f;
@@ -7734,7 +7911,7 @@ DisplayPluginPointer Application::getActiveDisplayPlugin() const {
 
 static const char* EXCLUSION_GROUP_KEY = "exclusionGroup";
 
-static void addDisplayPluginToMenu(DisplayPluginPointer displayPlugin, bool active = false) {
+static void addDisplayPluginToMenu(const DisplayPluginPointer& displayPlugin, int index, bool active) {
     auto menu = Menu::getInstance();
     QString name = displayPlugin->getName();
     auto grouping = displayPlugin->getGrouping();
@@ -7761,7 +7938,7 @@ static void addDisplayPluginToMenu(DisplayPluginPointer displayPlugin, bool acti
     }
     auto parent = menu->getMenu(MenuOption::OutputMenu);
     auto action = menu->addActionToQMenuAndActionHash(parent,
-        name, 0, qApp,
+        name, QKeySequence(Qt::CTRL + (Qt::Key_0 + index)), qApp,
         SLOT(updateDisplayMode()),
         QAction::NoRole, Menu::UNSPECIFIED_POSITION, groupingMenu);
 
@@ -7779,65 +7956,12 @@ void Application::updateDisplayMode() {
         qFatal("Attempted to switch display plugins from a non-main thread");
     }
 
-    auto displayPlugins = PluginManager::getInstance()->getDisplayPlugins();
-
-    // Once time initialization code 
-    static std::once_flag once;
-    std::call_once(once, [&] {
-        foreach(auto displayPlugin, displayPlugins) {
-            displayPlugin->setContext(_gpuContext);
-            QObject::connect(displayPlugin.get(), &DisplayPlugin::recommendedFramebufferSizeChanged,
-                [this](const QSize& size) { resizeGL(); });
-            QObject::connect(displayPlugin.get(), &DisplayPlugin::resetSensorsRequested, this, &Application::requestReset);
-        }
-    });
-
     // Once time initialization code that depends on the UI being available
-    auto menu = Menu::getInstance();
-    if (menu) {
-        static std::once_flag onceUi;
-        std::call_once(onceUi, [&] {
-            bool first = true;
-
-            // first sort the plugins into groupings: standard, advanced, developer
-            DisplayPluginList standard;
-            DisplayPluginList advanced;
-            DisplayPluginList developer;
-            foreach(auto displayPlugin, displayPlugins) {
-                displayPlugin->setContext(_gpuContext);
-                auto grouping = displayPlugin->getGrouping();
-                switch (grouping) {
-                case Plugin::ADVANCED:
-                    advanced.push_back(displayPlugin);
-                    break;
-                case Plugin::DEVELOPER:
-                    developer.push_back(displayPlugin);
-                    break;
-                default:
-                    standard.push_back(displayPlugin);
-                    break;
-                }
-            }
-
-            // concatenate the groupings into a single list in the order: standard, advanced, developer
-            standard.insert(std::end(standard), std::begin(advanced), std::end(advanced));
-            standard.insert(std::end(standard), std::begin(developer), std::end(developer));
-
-            foreach(auto displayPlugin, standard) {
-                addDisplayPluginToMenu(displayPlugin, first);
-                first = false;
-            }
-
-            // after all plugins have been added to the menu, add a separator to the menu
-            auto parent = menu->getMenu(MenuOption::OutputMenu);
-            parent->addSeparator();
-        });
-
-    }
-
+    auto displayPlugins = getDisplayPlugins();
 
     // Default to the first item on the list, in case none of the menu items match
     DisplayPluginPointer newDisplayPlugin = displayPlugins.at(0);
+    auto menu = getPrimaryMenu();
     if (menu) {
         foreach(DisplayPluginPointer displayPlugin, PluginManager::getInstance()->getDisplayPlugins()) {
             QString name = displayPlugin->getName();
@@ -7861,6 +7985,14 @@ void Application::updateDisplayMode() {
 }
 
 void Application::setDisplayPlugin(DisplayPluginPointer newDisplayPlugin) {
+    if (newDisplayPlugin == _displayPlugin) {
+        return;
+    }
+
+    // FIXME don't have the application directly set the state of the UI,
+    // instead emit a signal that the display plugin is changing and let 
+    // the desktop lock itself.  Reduces coupling between the UI and display
+    // plugins
     auto offscreenUi = DependencyManager::get<OffscreenUi>();
     auto desktop = offscreenUi->getDesktop();
     auto menu = Menu::getInstance();
@@ -7871,8 +8003,8 @@ void Application::setDisplayPlugin(DisplayPluginPointer newDisplayPlugin) {
         bool wasRepositionLocked = false;
         if (desktop) {
             // Tell the desktop to no reposition (which requires plugin info), until we have set the new plugin, below.
-            wasRepositionLocked = offscreenUi->getDesktop()->property("repositionLocked").toBool();
-            offscreenUi->getDesktop()->setProperty("repositionLocked", true);
+            wasRepositionLocked = desktop->property("repositionLocked").toBool();
+            desktop->setProperty("repositionLocked", true);
         }
 
         if (_displayPlugin) {
@@ -8084,7 +8216,6 @@ void Application::readArgumentsFromLocalSocket() const {
 }
 
 void Application::showDesktop() {
-    Menu::getInstance()->setIsOptionChecked(MenuOption::Overlays, true);
 }
 
 CompositorHelper& Application::getApplicationCompositor() const {
@@ -8173,29 +8304,22 @@ void Application::saveNextPhysicsStats(QString filename) {
     _physicsEngine->saveNextPhysicsStats(filename);
 }
 
-void Application::openAndroidActivity(const QString& activityName) {
-#if defined(Q_OS_ANDROID)
-    AndroidHelper::instance().requestActivity(activityName);
-#endif
-}
-
 #if defined(Q_OS_ANDROID)
 void Application::enterBackground() {
     QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(),
                               "stop", Qt::BlockingQueuedConnection);
-    //GC: commenting it out until we fix it
-    //getActiveDisplayPlugin()->deactivate();
+    if (getActiveDisplayPlugin()->isActive()) {
+        getActiveDisplayPlugin()->deactivate();
+    }
 }
+
 void Application::enterForeground() {
     QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(),
                                   "start", Qt::BlockingQueuedConnection);
-    //GC: commenting it out until we fix it
-    /*if (!getActiveDisplayPlugin() || !getActiveDisplayPlugin()->activate()) {
+    if (!getActiveDisplayPlugin() || getActiveDisplayPlugin()->isActive() || !getActiveDisplayPlugin()->activate()) {
         qWarning() << "Could not re-activate display plugin";
-    }*/
-
+    }
 }
 #endif
 
-#include "Application_jni.cpp"
 #include "Application.moc"
