@@ -110,8 +110,8 @@ private:
     std::vector<CharacterDetailedRigidBody> _rigidBodies;
     btDynamicsWorld* _world { nullptr };
     bool _updated { false };
-    int16_t _group { BULLET_COLLISION_GROUP_COLLISIONLESS };
-    int16_t _mask { BULLET_COLLISION_MASK_COLLISIONLESS };
+    int32_t _group { BULLET_COLLISION_GROUP_COLLISIONLESS };
+    int32_t _mask { BULLET_COLLISION_MASK_COLLISIONLESS };
 };
 
 #endif // hifi_CharacterDetailedCollisions_h

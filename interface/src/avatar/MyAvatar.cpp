@@ -589,13 +589,15 @@ void MyAvatar::updateChildCauterization(SpatiallyNestablePointer object) {
     }
 }
 
-QVariantMap MyAvatar::getDetailedPhysics() {
+QVariantMap MyAvatar::getDetailedPhysics(bool defaultValues) {
     QScriptEngine engine;
     QVariantMap result;
     if (_skeletonModel->isActive()) {
         auto collisions = _characterController.getMyAvatarDetailedCollisions();
         CharacterDetailedCollisions::CharacterDetailedConfig config;
-        collisions.getPhysicsConfig(config);
+        if (!defaultValues) {
+            collisions.getPhysicsConfig(config);
+        }
 
         result.insert("applyForce", config._applyForce);
         result.insert("forceDelta", config._forceDeltaType == CharacterDetailedCollisions::CharacterDetailedConfig::delta::FRAME ? config._forceDeltaFrameMult : config._forceDeltaPositionMult);
