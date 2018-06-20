@@ -1561,6 +1561,7 @@ private:
     FollowHelper _follow;
 
     bool _goToPending { false };
+    bool _isPreviousDomainCleared { false };
     bool _physicsSafetyPending { false };
     glm::vec3 _goToPosition;
     glm::quat _goToOrientation;

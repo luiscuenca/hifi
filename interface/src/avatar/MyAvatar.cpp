@@ -188,6 +188,10 @@ MyAvatar::MyAvatar(QThread* thread) :
         _skeletonModel->getRig().setEnableAnimations(!isPlaying);
     });
 
+    connect(qApp, &Application::domainCleared, [=] {
+        _isPreviousDomainCleared = true;
+    });
+
     connect(recorder.data(), &Recorder::recordingStateChanged, [=] {
         if (recorder->isRecording()) {
             setRecordingBasis();
@@ -431,7 +435,7 @@ void MyAvatar::update(float deltaTime) {
     DebugDraw::getInstance().drawRay(worldHeadPos, worldHeadPos + worldFacingAverage, glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
 #endif
 
-    if (_goToPending) {
+    if (_goToPending && _isPreviousDomainCleared) {
         setWorldPosition(_goToPosition);
         setWorldOrientation(_goToOrientation);
         _headControllerFacingMovingAverage = _headControllerFacing;  // reset moving average
@@ -446,9 +450,10 @@ void MyAvatar::update(float deltaTime) {
         _physicsSafetyPending = getCollisionsEnabled();
         _characterController.recomputeFlying(); // In case we've gone to into the sky.
     }
-    if (_physicsSafetyPending && qApp->isPhysicsEnabled() && _characterController.isEnabledAndReady()) {
+    if (_physicsSafetyPending && qApp->isPhysicsEnabled() && _characterController.isEnabledAndReady() && _isPreviousDomainCleared) {
         // When needed and ready, arrange to check and fix.
         _physicsSafetyPending = false;
+        _isPreviousDomainCleared = false;
         safeLanding(_goToPosition); // no-op if already safe
     }
 
@@ -2550,6 +2555,7 @@ void MyAvatar::goToLocation(const glm::vec3& newPosition,
         << newPosition.y << ", " << newPosition.z;
 
     _goToPending = true;
+    _isPreviousDomainCleared = false;
     _goToPosition = newPosition;
     _goToOrientation = getWorldOrientation();
     if (hasOrientation) {
@@ -2645,17 +2651,17 @@ bool MyAvatar::requiresSafeLanding(const glm::vec3& positionIn, glm::vec3& bette
         const bool precisionPicking = true;
         const auto lockType = Octree::Lock; // Should we refactor to take a lock just once?
         bool* accurateResult = NULL;
-
         QVariantMap extraInfo;
         EntityItemID entityID = entityTree->findRayIntersection(startPointIn, directionIn, include, ignore, visibleOnly, collidableOnly, precisionPicking,
             element, distance, face, normalOut, extraInfo, lockType, accurateResult);
-        if (entityID.isNull()) {
+        if (entityID.isInvalidID()) {
             return false;
         }
         intersectionOut = startPointIn + (directionIn * distance);
         entityIdOut = entityID;
         return true;
     };
+
 
     // The Algorithm, in four parts:
 
@@ -2665,12 +2671,10 @@ bool MyAvatar::requiresSafeLanding(const glm::vec3& positionIn, glm::vec3& bette
         // conditions, so no need to check our feet below.
         return false; // nothing above
     }
-
     if (!findIntersection(capsuleCenter, down, lowerIntersection, lowerId, lowerNormal)) {
         // Our head may be embedded, but our center is out and there's room below. See corresponding comment above.
         return false; // nothing below
     }
-
     // See if we have room between entities above and below, but that we are not contained.
     // First check if the surface above us is the bottom of something, and the surface below us it the top of something.
     // I.e., we are in a clearing between two objects.

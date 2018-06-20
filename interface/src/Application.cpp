@@ -6217,6 +6217,8 @@ void Application::clearDomainOctreeDetails() {
     DependencyManager::get<TextureCache>()->clearUnusedResources();
 
     getMyAvatar()->setAvatarEntityDataChanged(true);
+    
+    emit domainCleared();
 }
 
 void Application::clearDomainAvatars() {
