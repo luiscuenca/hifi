@@ -34,7 +34,7 @@ MyCharacterController::MyCharacterController(MyAvatar* avatar) {
 MyCharacterController::~MyCharacterController() {
 }
 
-void MyCharacterController::setDynamicsWorld(btDynamicsWorld* world) {
+void MyCharacterController::setDynamicsWorld(btMultiBodyDynamicsWorld* world) {
     CharacterController::setDynamicsWorld(world);
     if (world && _rigidBody) {
         initRayShotgun(world);
@@ -60,6 +60,7 @@ void MyCharacterController::updateShapeIfNecessary() {
                 shape = computeShape();
                 _rigidBody->setCollisionShape(shape);
             }
+            _multiBody.createAvatarMultiBody();
             updateMassProperties();
 
             _rigidBody->setSleepingThresholds(0.0f, 0.0f);

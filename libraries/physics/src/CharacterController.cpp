@@ -99,10 +99,11 @@ bool CharacterController::needsAddition() const {
     return ((_pendingFlags & PENDING_FLAG_ADD_TO_SIMULATION) == PENDING_FLAG_ADD_TO_SIMULATION);
 }
 
-void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
+void CharacterController::setDynamicsWorld(btMultiBodyDynamicsWorld* world) {
     if (_dynamicsWorld != world) {
         // remove from old world
         if (_dynamicsWorld) {
+            _multiBody.removeAvatarMultiBody();
             if (_rigidBody) {
                 _dynamicsWorld->removeRigidBody(_rigidBody);
                 _dynamicsWorld->removeAction(this);
@@ -113,17 +114,20 @@ void CharacterController::setDynamicsWorld(btDynamicsWorld* world) {
         if (_rigidBody) {
             updateMassProperties();
         }
-        if (world && _rigidBody) {
-            // add to new world
-            _dynamicsWorld = world;
-            _pendingFlags &= ~PENDING_FLAG_JUMP;
-            _dynamicsWorld->addRigidBody(_rigidBody, collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR);
-            _dynamicsWorld->addAction(this);
-            // restore gravity settings because adding an object to the world overwrites its gravity setting
-            _rigidBody->setGravity(_currentGravity * _currentUp);
-            btCollisionShape* shape = _rigidBody->getCollisionShape();
-            assert(shape && shape->getShapeType() == CONVEX_HULL_SHAPE_PROXYTYPE);
-            _ghost.setCharacterShape(static_cast<btConvexHullShape*>(shape));
+        if (world) {
+            if (_rigidBody) {
+                // add to new world
+                _dynamicsWorld = world;
+                _pendingFlags &= ~PENDING_FLAG_JUMP;
+                _dynamicsWorld->addRigidBody(_rigidBody, collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR);
+                _dynamicsWorld->addAction(this);
+                // restore gravity settings because adding an object to the world overwrites its gravity setting
+                _rigidBody->setGravity(_currentGravity * _currentUp);
+                btCollisionShape* shape = _rigidBody->getCollisionShape();
+                assert(shape && shape->getShapeType() == CONVEX_HULL_SHAPE_PROXYTYPE);
+                _ghost.setCharacterShape(static_cast<btConvexHullShape*>(shape));
+                _multiBody.setDynamicsWorld(world);
+            }
         }
         _ghost.setCollisionGroupAndMask(collisionGroup, BULLET_COLLISION_MASK_MY_AVATAR & (~ collisionGroup));
         _ghost.setCollisionWorld(_dynamicsWorld);
@@ -420,6 +424,11 @@ void CharacterController::setState(State desiredState) {
 
 void CharacterController::recomputeFlying() {
     _pendingFlags |= PENDING_FLAG_RECOMPUTE_FLYING;
+}
+
+void CharacterController::cleanPhysics() {
+    _multiBody.removeAvatarMultiBody();
+    _multiBody.cleanAvatarMultiBody();
 }
 
 void CharacterController::setLocalBoundingBox(const glm::vec3& minCorner, const glm::vec3& scale) {
@@ -827,6 +836,9 @@ void CharacterController::preSimulation() {
 
         updateState();
     }
+    glm::vec3 pos;
+    glm::quat ori;
+    getPositionAndOrientation(pos, ori);
 
     _previousFlags = _pendingFlags;
     _pendingFlags &= ~PENDING_FLAG_JUMP;

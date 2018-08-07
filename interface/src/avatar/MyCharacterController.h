@@ -24,7 +24,7 @@ public:
     explicit MyCharacterController(MyAvatar* avatar);
     ~MyCharacterController ();
 
-    void setDynamicsWorld(btDynamicsWorld* world) override;
+    void setDynamicsWorld(btMultiBodyDynamicsWorld* world) override;
     void updateShapeIfNecessary() override;
 
     // Sweeping a convex shape through the physics simulation can be expensive when the obstacles are too

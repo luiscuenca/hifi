@@ -520,6 +520,7 @@ void MyAvatar::update(float deltaTime) {
     emit energyChanged(currentEnergy);
 
     updateEyeContactTarget(deltaTime);
+    _characterController.setAvatarMultiBodyPosition(getWorldPosition());
 }
 
 void MyAvatar::updateEyeContactTarget(float deltaTime) {

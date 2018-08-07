@@ -15,6 +15,7 @@
 
 #include <QUuid>
 #include <btBulletDynamicsCommon.h>
+#include <BulletDynamics/Featherstone/btMultiBodyDynamicsWorld.h>
 #include "ObjectDynamic.h"
 
 class ObjectAction : public btActionInterface, public ObjectDynamic {

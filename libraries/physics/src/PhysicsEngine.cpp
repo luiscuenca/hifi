@@ -34,6 +34,7 @@ PhysicsEngine::PhysicsEngine(const glm::vec3& offset) :
 PhysicsEngine::~PhysicsEngine() {
     if (_myAvatarController) {
         _myAvatarController->setDynamicsWorld(nullptr);
+        _myAvatarController->cleanPhysics();
     }
     delete _collisionConfig;
     delete _collisionDispatcher;
@@ -48,7 +49,7 @@ void PhysicsEngine::init() {
         _collisionConfig = new btDefaultCollisionConfiguration();
         _collisionDispatcher = new btCollisionDispatcher(_collisionConfig);
         _broadphaseFilter = new btDbvtBroadphase();
-        _constraintSolver = new btSequentialImpulseConstraintSolver;
+        _constraintSolver = new btMultiBodyConstraintSolver;
         _dynamicsWorld = new ThreadSafeDynamicsWorld(_collisionDispatcher, _broadphaseFilter, _constraintSolver, _collisionConfig);
         _physicsDebugDraw.reset(new PhysicsDebugDraw());
 
@@ -319,7 +320,7 @@ void PhysicsEngine::stepSimulation() {
         }
         _myAvatarController->updateShapeIfNecessary();
         if (_myAvatarController->needsAddition()) {
-            _myAvatarController->setDynamicsWorld(_dynamicsWorld);
+            _myAvatarController->setDynamicsWorld(reinterpret_cast<btMultiBodyDynamicsWorld*>(_dynamicsWorld));
         }
         _myAvatarController->preSimulation();
     }

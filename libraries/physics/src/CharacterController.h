@@ -24,6 +24,7 @@
 
 #include "BulletUtil.h"
 #include "CharacterGhostObject.h"
+#include "CharacterMultiBody.h"
 #include "AvatarConstants.h" 
 
 const uint32_t PENDING_FLAG_ADD_TO_SIMULATION = 1U << 0;
@@ -36,7 +37,6 @@ const float DEFAULT_MIN_FLOOR_NORMAL_DOT_UP = cosf(PI / 3.0f);
 
 class btRigidBody;
 class btCollisionWorld;
-class btDynamicsWorld;
 
 //#define DEBUG_STATE_CHANGE
 
@@ -50,12 +50,16 @@ public:
     virtual ~CharacterController();
     bool needsRemoval() const;
     bool needsAddition() const;
-    virtual void setDynamicsWorld(btDynamicsWorld* world);
+    virtual void setDynamicsWorld(btMultiBodyDynamicsWorld* world);
     btCollisionObject* getCollisionObject() { return _rigidBody; }
 
     void setGravity(float gravity);
     float getGravity();
     void recomputeFlying();
+
+    void setAvatarMultiBodyPosition(const glm::vec3& position) { _multiBody.setAvatarMultiBodyPosition(0.0f, position); };
+
+    void cleanPhysics();
 
     virtual void updateShapeIfNecessary() = 0;
 
@@ -202,7 +206,7 @@ protected:
     bool _isPushingUp;
     bool _isStuck { false };
 
-    btDynamicsWorld* _dynamicsWorld { nullptr };
+    btMultiBodyDynamicsWorld* _dynamicsWorld { nullptr };
     btRigidBody* _rigidBody { nullptr };
     uint32_t _pendingFlags { 0 };
     uint32_t _previousFlags { 0 };
@@ -212,6 +216,7 @@ protected:
     bool _collisionless { false };
 
     btScalar _scaleFactor { 1.0f };
+    CharacterMultiBody _multiBody;
 };
 
 #endif // hifi_CharacterController_h

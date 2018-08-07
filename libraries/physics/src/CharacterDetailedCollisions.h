@@ -1,0 +1,135 @@
+//
+//  CharacterDetailedCollisions.h
+//  libraries/physics/src
+//
+//  Created by Luis Cuenca 5/11/2018
+//  Copyright 2018 High Fidelity, Inc.
+//
+//  Distributed under the Apache License, Version 2.0.
+//  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
+//
+
+#ifndef hifi_CharacterDetailedCollisions_h
+#define hifi_CharacterDetailedCollisions_h
+
+#include <stdint.h>
+
+#include <btBulletDynamicsCommon.h>
+#include <BulletDynamics/Featherstone/btMultiBody.h>
+#include <BulletDynamics/Featherstone/btMultiBodyLinkCollider.h>
+#include <BulletDynamics/Featherstone/btMultiBodyConstraintSolver.h>
+#include <BulletDynamics/Featherstone/btMultiBodyDynamicsWorld.h>
+#include <GLMHelpers.h>
+#include <ScriptValueUtils.h>
+#include "BulletUtil.h"
+#include "PhysicsCollisionGroups.h"
+
+
+class CharacterDetailedCollisions {
+public:
+    struct CharacterDetailedConfig {
+        enum delta {
+            POSITION = 0,
+            FRAME
+        };
+        int _forceDeltaType{ delta::FRAME };
+        int _velocityDeltaType{ delta::FRAME };
+        int _impulseDeltaType{ delta::POSITION };
+
+        float _forceDeltaFrameMult{ 0.0f };
+        float _velocityDeltaFrameMult{ 0.5f };
+        float _impulseDeltaFrameMult{ 0.0f };
+
+        float _forceDeltaPositionMult{ 0.0f };
+        float _velocityDeltaPositionMult{ 0.0f };
+        float _impulseDeltaPositionMult{ 0.2f };
+
+        bool _applyLinearVelocity{ true };
+        bool _applyImpulse{ true };
+        bool _applyForce{ false };
+
+        bool _attenuate{ true };
+        float _attenuationValue { 0.2f };
+        float _attenuationThreshold { 0.002f };
+    };
+
+    struct CharacterDetailedRigidBody {
+
+        enum type {
+            KINEMATIC = 0,
+            DYNAMIC
+        };
+        const float DETAILED_COLLISION_RADIUS = 0.003f;
+        const float DETAILED_MASS_KINEMATIC = 2.0f;
+        const float DETAILED_MASS_DYNAMIC = 1.0f;
+        const float LINEAR_VELOCITY_MULTIPLIER = 100.0f;
+        
+        CharacterDetailedRigidBody() { _rigidBody = nullptr; };
+        CharacterDetailedRigidBody(std::vector<btVector3>& shapePoints, int type);
+        CharacterDetailedRigidBody(btVector3& bbox, btVector3& offset);
+
+        void setTransform(float deltaTime, btTransform& transform);
+
+        void setConfig(const CharacterDetailedConfig& config) { _config = config; };
+        const CharacterDetailedConfig& getConfig() const { return _config; };
+
+        void cleanCollision();
+
+        btTransform _lastTransform;
+        btQuaternion _lastDeltaRotation;
+        btVector3 _offset;
+        btRigidBody* _rigidBody { nullptr };
+        btDefaultMotionState* _motionState { nullptr };
+
+        int _init { 0 };
+        bool _colliding { false };
+        CharacterDetailedConfig _config;
+        int _type { type::KINEMATIC };
+        btVector3 _position;
+        btQuaternion _rotation;
+    };
+
+    struct RayJointResult {
+        int _intersectWithJoint{ -1 };
+        float _distance{ 0.0f };
+        glm::vec3 _intersectionPoint;
+    };
+
+    void createAvatarMultiBody();
+    void setAvatarMultiBodyPosition(float deltaTime, const glm::vec3& newPosition);
+    void cleanAvatarMultiBody();
+    void removeAvatarMultiBody();
+    void updateAvatarMultiBody();
+
+    void setCollisionGroup(int16_t group) { _group = group; };
+    void setCollisionMask(int16_t mask) { _mask = mask; };
+    void setDynamicsWorld(btMultiBodyDynamicsWorld* world);
+    void addRigidBody(std::vector<btVector3>& points, int type);
+    void addRigidBody(btVector3& bbox, btVector3& offset);
+    void setRigidBodyTransform(float deltaTime, int jointIndex, glm::quat& rotation, glm::vec3& position);
+    void setRigidBodyTransform(float deltaTime, int jointIndex, btTransform& transform);
+    void updateCollisions();
+    void removeCollisions();
+    void cleanCollisions();
+    bool hasRigidBody(int jointIndex);
+    
+    void getPhysicsConfig(CharacterDetailedCollisions::CharacterDetailedConfig& config);
+    void setPhysicsConfig(const CharacterDetailedCollisions::CharacterDetailedConfig& config);
+    RayJointResult rayTest(const btVector3& origin, const btVector3& direction, const btScalar& length, const QVector<uint>& jointsToExclude = QVector<uint>()) const;
+    const std::vector<CharacterDetailedRigidBody>& getRigidBodies() const { return _rigidBodies; };
+    
+private:
+    void addAvatarMultiBodyColliders(const btVector3 &baseHalfExtents, const btVector3 &linkHalfExtents);
+    btMultiBody* createFeatherstoneMultiBody(int numLinks, const btVector3 &basePosition, const btVector3 &baseHalfExtents, const btVector3 &linkHalfExtents, bool spherical, bool floating);
+    std::vector<CharacterDetailedRigidBody> _rigidBodies;
+    std::vector<btMultiBodyLinkCollider*> _multiBodies;
+    btMultiBodyDynamicsWorld* _world { nullptr };
+    btMultiBody* _avatarMultiBody { nullptr };
+    
+    bool _updated { false };
+    bool _multiUpdated{ false };
+    int32_t _group { BULLET_COLLISION_GROUP_COLLISIONLESS };
+    int32_t _mask { BULLET_COLLISION_MASK_COLLISIONLESS };
+};
+
+#endif // hifi_CharacterDetailedCollisions_h

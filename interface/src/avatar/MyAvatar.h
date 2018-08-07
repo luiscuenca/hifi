@@ -484,7 +484,7 @@ public:
      * @function MyAvatar.getDominantHand
      * @returns {string} 
      */
-    Q_INVOKABLE QString getDominantHand() const { return _dominantHand; }
+    Q_INVOKABLE QString getDominantHand() const { return DOMINANT_RIGHT_HAND; }
 
     /**jsdoc
     * @function MyAvatar.setCenterOfGravityModelEnabled

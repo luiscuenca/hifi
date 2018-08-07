@@ -118,7 +118,7 @@ private:
     btDefaultCollisionConfiguration* _collisionConfig = NULL;
     btCollisionDispatcher* _collisionDispatcher = NULL;
     btBroadphaseInterface* _broadphaseFilter = NULL;
-    btSequentialImpulseConstraintSolver* _constraintSolver = NULL;
+    btMultiBodyConstraintSolver* _constraintSolver = NULL;
     ThreadSafeDynamicsWorld* _dynamicsWorld = NULL;
     btGhostPairCallback* _ghostPairCallback = NULL;
     std::unique_ptr<PhysicsDebugDraw> _physicsDebugDraw;

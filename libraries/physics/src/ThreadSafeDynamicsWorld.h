@@ -19,7 +19,7 @@
 #define hifi_ThreadSafeDynamicsWorld_h
 
 #include <BulletDynamics/Dynamics/btRigidBody.h>
-#include <BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h>
+#include <BulletDynamics/Featherstone/btMultiBodyDynamicsWorld.h>
 
 #include "ObjectMotionState.h"
 
@@ -27,14 +27,14 @@
 
 using SubStepCallback = std::function<void()>;
 
-ATTRIBUTE_ALIGNED16(class) ThreadSafeDynamicsWorld : public btDiscreteDynamicsWorld {
+ATTRIBUTE_ALIGNED16(class) ThreadSafeDynamicsWorld : public btMultiBodyDynamicsWorld {
 public:
     BT_DECLARE_ALIGNED_ALLOCATOR();
 
     ThreadSafeDynamicsWorld(
             btDispatcher* dispatcher,
             btBroadphaseInterface* pairCache,
-            btConstraintSolver* constraintSolver,
+            btMultiBodyConstraintSolver* constraintSolver,
             btCollisionConfiguration* collisionConfiguration);
 
     int getNumSubsteps() const { return _numSubsteps; }
@@ -54,9 +54,12 @@ public:
 
     void addChangedMotionState(ObjectMotionState* motionState) { _changedMotionStates.push_back(motionState); }
 
+    virtual void debugDrawObject(const btTransform& worldTransform, const btCollisionShape* shape, const btVector3& color);
+
 private:
     // call this instead of non-virtual btDiscreteDynamicsWorld::synchronizeSingleMotionState()
     void synchronizeMotionState(btRigidBody* body);
+    void drawConnectedSpheres(btIDebugDraw* drawer, btScalar radius1, btScalar radius2, const btVector3& position1, const btVector3& position2, const btVector3& color);
 
     VectorOfMotionStates _changedMotionStates;
     VectorOfMotionStates _deactivatedStates;

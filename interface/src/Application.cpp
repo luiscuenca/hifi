@@ -2416,7 +2416,7 @@ void Application::cleanupBeforeQuit() {
     // add a logline indicating if QTWEBENGINE_REMOTE_DEBUGGING is set or not
     QString webengineRemoteDebugging = QProcessEnvironment::systemEnvironment().value("QTWEBENGINE_REMOTE_DEBUGGING", "false");
     qCDebug(interfaceapp) << "QTWEBENGINE_REMOTE_DEBUGGING =" << webengineRemoteDebugging;
-
+    
     if (tracing::enabled()) {
         auto tracer = DependencyManager::get<tracing::Tracer>();
         tracer->stopTracing();
@@ -2526,12 +2526,13 @@ void Application::cleanupBeforeQuit() {
 
 Application::~Application() {
     // remove avatars from physics engine
+    getMyAvatar()->getCharacterController()->cleanPhysics();
     DependencyManager::get<AvatarManager>()->clearOtherAvatars();
     VectorOfMotionStates motionStates;
     DependencyManager::get<AvatarManager>()->getObjectsToRemoveFromPhysics(motionStates);
     _physicsEngine->removeObjects(motionStates);
     DependencyManager::get<AvatarManager>()->deleteAllAvatars();
-
+    
     _physicsEngine->setCharacterController(nullptr);
 
     // the _shapeManager should have zero references
@@ -5734,7 +5735,7 @@ void Application::update(float deltaTime) {
                             avatarManager->handleChangedMotionStates(outgoingChanges);
 
                             const VectorOfMotionStates& deactivations = _physicsEngine->getDeactivatedMotionStates();
-                            _entitySimulation->handleDeactivatedMotionStates(deactivations);
+                            //_entitySimulation->handleDeactivatedMotionStates(deactivations);
                         });
 
                         if (!_aboutToQuit) {

@@ -33,7 +33,7 @@ void ObjectAction::updateAction(btCollisionWorld* collisionWorld, btScalar delta
 
     if (!ownerEntity) {
         qCDebug(physics) << "warning -- action [" << _tag << "] with no entity removing self from btCollisionWorld.";
-        btDynamicsWorld* dynamicsWorld = static_cast<btDynamicsWorld*>(collisionWorld);
+        btMultiBodyDynamicsWorld* dynamicsWorld = static_cast<btMultiBodyDynamicsWorld*>(collisionWorld);
         if (dynamicsWorld) {
             dynamicsWorld->removeAction(this);
         }
