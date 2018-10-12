@@ -151,26 +151,30 @@ void AvatarManager::playTransitAnimations(AvatarTransit::Status status) {
     switch (status) {
         case AvatarTransit::Status::START_FRAME:
             qDebug() << "START_FRAME";
-            _myAvatar->overrideAnimation(startAnimation._animationUrl, REFERENCE_FPS, false, startAnimation._firstFrame,
+            _myAvatar->overrideNetworkAnimation(startAnimation._animationUrl, REFERENCE_FPS, false, startAnimation._firstFrame,
                                          startAnimation._firstFrame + startAnimation._frameCount);
             break;
         case AvatarTransit::Status::START_TRANSIT:
             qDebug() << "START_TRANSIT";
-            _myAvatar->overrideAnimation(middleAnimation._animationUrl, REFERENCE_FPS, false, middleAnimation._firstFrame,
+            _myAvatar->overrideNetworkAnimation(middleAnimation._animationUrl, REFERENCE_FPS, false, middleAnimation._firstFrame,
                                          middleAnimation._firstFrame + middleAnimation._frameCount);
             break;
         case AvatarTransit::Status::END_TRANSIT:
             qDebug() << "END_TRANSIT";
-            _myAvatar->overrideAnimation(endAnimation._animationUrl, REFERENCE_FPS, false, endAnimation._firstFrame,
+            _myAvatar->overrideNetworkAnimation(endAnimation._animationUrl, REFERENCE_FPS, false, endAnimation._firstFrame,
                                          endAnimation._firstFrame + endAnimation._frameCount);
             break;
         case AvatarTransit::Status::END_FRAME:
             qDebug() << "END_FRAME";
-            _myAvatar->restoreAnimation();
+            _myAvatar->restoreNetworkAnimation();
             break;
         case AvatarTransit::Status::IDLE:
             break;
         case AvatarTransit::Status::TRANSITING:
+            break;
+        case AvatarTransit::Status::ABORT_TRANSIT:
+            qDebug() << "ABORT_TRANSIT";
+            _myAvatar->restoreAnimation();
             break;
     }
 }

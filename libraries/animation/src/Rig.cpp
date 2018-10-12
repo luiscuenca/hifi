@@ -94,6 +94,48 @@ Rig::~Rig() {
     }
 }
 
+void Rig::overrideNetworkAnimation(const QString& url, float fps, bool loop, float firstFrame, float lastFrame) {
+
+    UserAnimState::ClipNodeEnum clipNodeEnum;
+    if (_networkAnimState.clipNodeEnum == UserAnimState::None || _networkAnimState.clipNodeEnum == UserAnimState::B) {
+        clipNodeEnum = UserAnimState::A;
+    }
+    else {
+        clipNodeEnum = UserAnimState::B;
+    }
+
+    if (_networkNode) {
+        // find an unused AnimClip clipNode
+        _sendNetworkNode = true;
+        std::shared_ptr<AnimClip> clip;
+        if (clipNodeEnum == UserAnimState::A) {
+            clip = std::dynamic_pointer_cast<AnimClip>(_networkNode->findByName("userAnimA"));
+        }
+        else {
+            clip = std::dynamic_pointer_cast<AnimClip>(_networkNode->findByName("userAnimB"));
+        }
+
+        if (clip) {
+            // set parameters
+            clip->setLoopFlag(loop);
+            clip->setStartFrame(firstFrame);
+            clip->setEndFrame(lastFrame);
+            const float REFERENCE_FRAMES_PER_SECOND = 30.0f;
+            float timeScale = fps / REFERENCE_FRAMES_PER_SECOND;
+            clip->setTimeScale(timeScale);
+            clip->loadURL(url);
+        }
+    }
+
+    // store current user anim state.
+    _networkAnimState = { clipNodeEnum, url, fps, loop, firstFrame, lastFrame };
+
+    // notify the userAnimStateMachine the desired state.
+    _networkVars.set("userAnimNone", false);
+    _networkVars.set("userAnimA", clipNodeEnum == UserAnimState::A);
+    _networkVars.set("userAnimB", clipNodeEnum == UserAnimState::B);
+}
+
 void Rig::overrideAnimation(const QString& url, float fps, bool loop, float firstFrame, float lastFrame) {
 
     UserAnimState::ClipNodeEnum clipNodeEnum;
@@ -144,6 +186,17 @@ void Rig::restoreAnimation() {
     }
 }
 
+void Rig::restoreNetworkAnimation() {
+    _sendNetworkNode = false;
+    if (_networkAnimState.clipNodeEnum != UserAnimState::None) {
+        _networkAnimState.clipNodeEnum = UserAnimState::None;
+
+        // notify the userAnimStateMachine the desired state.
+        _networkVars.set("userAnimNone", true);
+        _networkVars.set("userAnimA", false);
+        _networkVars.set("userAnimB", false);
+    }
+}
 QStringList Rig::getAnimationRoles() const {
     if (_animNode) {
         QStringList list;
@@ -207,13 +260,20 @@ void Rig::restoreRoleAnimation(const QString& role) {
 
 void Rig::destroyAnimGraph() {
     _animSkeleton.reset();
-    _animLoader.reset();
+    _animLoader.reset(); 
+    _networkLoader.reset();
     _animNode.reset();
     _internalPoseSet._relativePoses.clear();
     _internalPoseSet._absolutePoses.clear();
     _internalPoseSet._overridePoses.clear();
     _internalPoseSet._overrideFlags.clear();
+    _networkNode.reset();
+    _networkPoseSet._relativePoses.clear();
+    _networkPoseSet._absolutePoses.clear();
+    _networkPoseSet._overridePoses.clear();
+    _networkPoseSet._overrideFlags.clear();
     _numOverrides = 0;
+    _numNetworkOverrides = 0;
     _leftEyeJointChildren.clear();
     _rightEyeJointChildren.clear();
 }
@@ -229,15 +289,26 @@ void Rig::initJointStates(const FBXGeometry& geometry, const glm::mat4& modelOff
 
     _internalPoseSet._relativePoses.clear();
     _internalPoseSet._relativePoses = _animSkeleton->getRelativeDefaultPoses();
+    _networkPoseSet._relativePoses.clear();
+    _networkPoseSet._relativePoses = _animSkeleton->getRelativeDefaultPoses();
 
     buildAbsoluteRigPoses(_internalPoseSet._relativePoses, _internalPoseSet._absolutePoses);
+    buildAbsoluteRigPoses(_networkPoseSet._relativePoses, _networkPoseSet._absolutePoses);
 
     _internalPoseSet._overridePoses.clear();
     _internalPoseSet._overridePoses = _animSkeleton->getRelativeDefaultPoses();
 
     _internalPoseSet._overrideFlags.clear();
     _internalPoseSet._overrideFlags.resize(_animSkeleton->getNumJoints(), false);
+
+    _networkPoseSet._overridePoses.clear();
+    _networkPoseSet._overridePoses = _animSkeleton->getRelativeDefaultPoses();
+
+    _networkPoseSet._overrideFlags.clear();
+    _networkPoseSet._overrideFlags.resize(_animSkeleton->getNumJoints(), false);
+
     _numOverrides = 0;
+    _numNetworkOverrides = 0;
 
     buildAbsoluteRigPoses(_animSkeleton->getRelativeDefaultPoses(), _absoluteDefaultPoses);
 
@@ -270,7 +341,20 @@ void Rig::reset(const FBXGeometry& geometry) {
 
     _internalPoseSet._overrideFlags.clear();
     _internalPoseSet._overrideFlags.resize(_animSkeleton->getNumJoints(), false);
+
+    _networkPoseSet._relativePoses.clear();
+    _networkPoseSet._relativePoses = _animSkeleton->getRelativeDefaultPoses();
+
+    buildAbsoluteRigPoses(_networkPoseSet._relativePoses, _networkPoseSet._absolutePoses);
+
+    _networkPoseSet._overridePoses.clear();
+    _networkPoseSet._overridePoses = _animSkeleton->getRelativeDefaultPoses();
+
+    _networkPoseSet._overrideFlags.clear();
+    _networkPoseSet._overrideFlags.resize(_animSkeleton->getNumJoints(), false);
+
     _numOverrides = 0;
+    _numNetworkOverrides = 0;
 
     buildAbsoluteRigPoses(_animSkeleton->getRelativeDefaultPoses(), _absoluteDefaultPoses);
 
@@ -294,11 +378,11 @@ void Rig::reset(const FBXGeometry& geometry) {
 }
 
 bool Rig::jointStatesEmpty() {
-    return _internalPoseSet._relativePoses.empty();
+    return !_sendNetworkNode ? _internalPoseSet._relativePoses.empty() : _networkPoseSet._relativePoses.empty();
 }
 
 int Rig::getJointStateCount() const {
-    return (int)_internalPoseSet._relativePoses.size();
+    return !_sendNetworkNode ? (int)_internalPoseSet._relativePoses.size() : (int)_networkPoseSet._relativePoses.size();
 }
 
 static const uint32_t MAX_JOINT_NAME_WARNING_COUNT = 100;
@@ -348,30 +432,55 @@ void Rig::setModelOffset(const glm::mat4& modelOffsetMat) {
 
 void Rig::clearJointState(int index) {
     if (isIndexValid(index)) {
-        if (_internalPoseSet._overrideFlags[index]) {
-            _internalPoseSet._overrideFlags[index] = false;
-            --_numOverrides;
+        if (!_sendNetworkNode) {
+            if (_internalPoseSet._overrideFlags[index]) {
+                _internalPoseSet._overrideFlags[index] = false;
+                --_numOverrides;
+            }
+            _internalPoseSet._overridePoses[index] = _animSkeleton->getRelativeDefaultPose(index);
+        } else {
+            if (_networkPoseSet._overrideFlags[index]) {
+                _networkPoseSet._overrideFlags[index] = false;
+                --_numNetworkOverrides;
+            }
+            _networkPoseSet._overridePoses[index] = _animSkeleton->getRelativeDefaultPose(index);
         }
-        _internalPoseSet._overridePoses[index] = _animSkeleton->getRelativeDefaultPose(index);
     }
 }
 
 void Rig::clearJointStates() {
-    _internalPoseSet._overrideFlags.clear();
-    _numOverrides = 0;
-    if (_animSkeleton) {
-        _internalPoseSet._overrideFlags.resize(_animSkeleton->getNumJoints());
-        _internalPoseSet._overridePoses = _animSkeleton->getRelativeDefaultPoses();
+    if (!_sendNetworkNode) {
+        _internalPoseSet._overrideFlags.clear();
+        _numOverrides = 0;
+        if (_animSkeleton) {
+            _internalPoseSet._overrideFlags.resize(_animSkeleton->getNumJoints());
+            _internalPoseSet._overridePoses = _animSkeleton->getRelativeDefaultPoses();
+        }
+    } else {
+        _networkPoseSet._overrideFlags.clear();
+        _numNetworkOverrides = 0;
+        if (_animSkeleton) {
+            _networkPoseSet._overrideFlags.resize(_animSkeleton->getNumJoints());
+            _networkPoseSet._overridePoses = _animSkeleton->getRelativeDefaultPoses();
+        }
     }
 }
 
 void Rig::clearJointAnimationPriority(int index) {
     if (isIndexValid(index)) {
-        if (_internalPoseSet._overrideFlags[index]) {
-            _internalPoseSet._overrideFlags[index] = false;
-            --_numOverrides;
+        if (!_sendNetworkNode) {
+            if (_internalPoseSet._overrideFlags[index]) {
+                _internalPoseSet._overrideFlags[index] = false;
+                --_numOverrides;
+            }
+            _internalPoseSet._overridePoses[index] = _animSkeleton->getRelativeDefaultPose(index);
+        } else {
+            if (_networkPoseSet._overrideFlags[index]) {
+                _networkPoseSet._overrideFlags[index] = false;
+                --_numNetworkOverrides;
+            }
+            _networkPoseSet._overridePoses[index] = _animSkeleton->getRelativeDefaultPose(index);
         }
-        _internalPoseSet._overridePoses[index] = _animSkeleton->getRelativeDefaultPose(index);
     }
 }
 
@@ -424,37 +533,54 @@ int Rig::getJointParentIndex(int childIndex) const {
 void Rig::setJointTranslation(int index, bool valid, const glm::vec3& translation, float priority) {
     if (isIndexValid(index)) {
         if (valid) {
-            assert(_internalPoseSet._overrideFlags.size() == _internalPoseSet._overridePoses.size());
-            if (!_internalPoseSet._overrideFlags[index]) {
-                _internalPoseSet._overrideFlags[index] = true;
-                ++_numOverrides;
+            PoseSet& poseSet = !_sendNetworkNode ? _internalPoseSet : _networkPoseSet;
+            assert(poseSet._overrideFlags.size() == poseSet._overridePoses.size());
+            if (!poseSet._overrideFlags[index]) {
+                poseSet._overrideFlags[index] = true;
+                if (!_sendNetworkNode) {
+                    ++_numOverrides;
+                } else {
+                    ++_numNetworkOverrides;
+                }
             }
-            _internalPoseSet._overridePoses[index].trans() = translation;
+            poseSet._overridePoses[index].trans() = translation;
         }
     }
 }
 
 void Rig::setJointState(int index, bool valid, const glm::quat& rotation, const glm::vec3& translation, float priority) {
     if (isIndexValid(index)) {
-        assert(_internalPoseSet._overrideFlags.size() == _internalPoseSet._overridePoses.size());
-        if (!_internalPoseSet._overrideFlags[index]) {
-            _internalPoseSet._overrideFlags[index] = true;
-            ++_numOverrides;
+        PoseSet& poseSet = !_sendNetworkNode ? _internalPoseSet : _networkPoseSet;
+        assert(poseSet._overrideFlags.size() == poseSet._overridePoses.size());
+        if (!poseSet._overrideFlags[index]) {
+            poseSet._overrideFlags[index] = true;
+            if (!_sendNetworkNode) {
+                ++_numOverrides;
+            }
+            else {
+                ++_numNetworkOverrides;
+            }
         }
-        _internalPoseSet._overridePoses[index].rot() = rotation;
-        _internalPoseSet._overridePoses[index].trans() = translation;
+        poseSet._overridePoses[index].rot() = rotation;
+        poseSet._overridePoses[index].trans() = translation;
     }
 }
 
 void Rig::setJointRotation(int index, bool valid, const glm::quat& rotation, float priority) {
     if (isIndexValid(index)) {
         if (valid) {
-            ASSERT(_internalPoseSet._overrideFlags.size() == _internalPoseSet._overridePoses.size());
-            if (!_internalPoseSet._overrideFlags[index]) {
-                _internalPoseSet._overrideFlags[index] = true;
-                ++_numOverrides;
+            PoseSet& poseSet = !_sendNetworkNode ? _internalPoseSet : _networkPoseSet;
+            ASSERT(poseSet._overrideFlags.size() == poseSet._overridePoses.size());
+            if (!poseSet._overrideFlags[index]) {
+                poseSet._overrideFlags[index] = true;
+                if (!_sendNetworkNode) {
+                    ++_numOverrides;
+                }
+                else {
+                    ++_numNetworkOverrides;
+                }
             }
-            _internalPoseSet._overridePoses[index].rot() = rotation;
+            poseSet._overridePoses[index].rot() = rotation;
         }
     }
 }
@@ -466,7 +592,7 @@ bool Rig::getJointPositionInWorldFrame(int jointIndex, glm::vec3& position, glm:
     glm::vec3 poseSetTrans;
     if (onOwnerThread) {
         if (isIndexValid(jointIndex)) {
-            poseSetTrans = _internalPoseSet._absolutePoses[jointIndex].trans();
+            poseSetTrans = !_sendNetworkNode ? _internalPoseSet._absolutePoses[jointIndex].trans() : _networkPoseSet._absolutePoses[jointIndex].trans();
             position = (rotation * poseSetTrans) + translation;
             success = true;
         } else {
@@ -502,7 +628,7 @@ bool Rig::getJointPositionInWorldFrame(int jointIndex, glm::vec3& position, glm:
 bool Rig::getJointPosition(int jointIndex, glm::vec3& position) const {
     if (QThread::currentThread() == thread()) {
         if (isIndexValid(jointIndex)) {
-            position = _internalPoseSet._absolutePoses[jointIndex].trans();
+            position = !_sendNetworkNode ? _internalPoseSet._absolutePoses[jointIndex].trans() : _networkPoseSet._absolutePoses[jointIndex].trans();
             return true;
         } else {
             return false;
@@ -515,7 +641,7 @@ bool Rig::getJointPosition(int jointIndex, glm::vec3& position) const {
 bool Rig::getJointRotationInWorldFrame(int jointIndex, glm::quat& result, const glm::quat& rotation) const {
     if (QThread::currentThread() == thread()) {
         if (isIndexValid(jointIndex)) {
-            result = rotation * _internalPoseSet._absolutePoses[jointIndex].rot();
+            result = rotation * (!_sendNetworkNode ? _internalPoseSet._absolutePoses[jointIndex].rot() : _networkPoseSet._absolutePoses[jointIndex].rot());
             return true;
         } else {
             return false;
@@ -534,7 +660,7 @@ bool Rig::getJointRotationInWorldFrame(int jointIndex, glm::quat& result, const 
 bool Rig::getJointRotation(int jointIndex, glm::quat& rotation) const {
     if (QThread::currentThread() == thread()) {
         if (isIndexValid(jointIndex)) {
-            rotation = _internalPoseSet._relativePoses[jointIndex].rot();
+            rotation = !_sendNetworkNode ? _internalPoseSet._relativePoses[jointIndex].rot() : _networkPoseSet._relativePoses[jointIndex].rot();
             return true;
         } else {
             return false;
@@ -1049,30 +1175,44 @@ void Rig::updateAnimations(float deltaTime, const glm::mat4& rootTransform, cons
 
         updateAnimationStateHandlers();
         _animVars.setRigToGeometryTransform(_rigToGeometryTransform);
+        if (_networkNode) {
+            _networkVars.setRigToGeometryTransform(_rigToGeometryTransform);
+        }
 
         AnimContext context(_enableDebugDrawIKTargets, _enableDebugDrawIKConstraints, _enableDebugDrawIKChains,
-                            getGeometryToRigTransform(), rigToWorldTransform);
+            getGeometryToRigTransform(), rigToWorldTransform);
 
         // evaluate the animation
         AnimVariantMap triggersOut;
-
+        AnimVariantMap networkTriggersOut;
         _internalPoseSet._relativePoses = _animNode->evaluate(_animVars, context, deltaTime, triggersOut);
+        if (_networkNode) {
+            _networkPoseSet._relativePoses = _networkNode->evaluate(_networkVars, context, deltaTime, networkTriggersOut);
+        }
         if ((int)_internalPoseSet._relativePoses.size() != _animSkeleton->getNumJoints()) {
             // animations haven't fully loaded yet.
             _internalPoseSet._relativePoses = _animSkeleton->getRelativeDefaultPoses();
         }
+        if ((int)_networkPoseSet._relativePoses.size() != _animSkeleton->getNumJoints()) {
+            // animations haven't fully loaded yet.
+            _networkPoseSet._relativePoses = _animSkeleton->getRelativeDefaultPoses();
+        }
         _lastAnimVars = _animVars;
         _animVars.clearTriggers();
         _animVars = triggersOut;
+        _networkVars.clearTriggers();
+        _networkVars = networkTriggersOut;
         _lastContext = context;
     }
-    applyOverridePoses();
-    buildAbsoluteRigPoses(_internalPoseSet._relativePoses, _internalPoseSet._absolutePoses);
 
+    applyOverridePoses();
+
+    buildAbsoluteRigPoses(_internalPoseSet._relativePoses, _internalPoseSet._absolutePoses);
+    buildAbsoluteRigPoses(_networkPoseSet._relativePoses, _networkPoseSet._absolutePoses);
     // copy internal poses to external poses
     {
         QWriteLocker writeLock(&_externalPoseSetLock);
-        _externalPoseSet = _internalPoseSet;
+        _externalPoseSet = _sendNetworkNode ? _networkPoseSet : _internalPoseSet;
     }
 }
 
@@ -1707,9 +1847,11 @@ void Rig::initAnimGraph(const QUrl& url) {
         _animGraphURL = url;
 
         _animNode.reset();
+        _networkNode.reset();
 
         // load the anim graph
         _animLoader.reset(new AnimNodeLoader(url));
+        _networkLoader.reset(new AnimNodeLoader(url));
         std::weak_ptr<AnimSkeleton> weakSkeletonPtr = _animSkeleton;
         connect(_animLoader.get(), &AnimNodeLoader::success, [this, weakSkeletonPtr](AnimNode::Pointer nodeIn) {
             _animNode = nodeIn;
@@ -1740,6 +1882,30 @@ void Rig::initAnimGraph(const QUrl& url) {
         connect(_animLoader.get(), &AnimNodeLoader::error, [url](int error, QString str) {
             qCCritical(animation) << "Error loading" << url.toDisplayString() << "code = " << error << "str =" << str;
         });
+
+        connect(_networkLoader.get(), &AnimNodeLoader::success, [this, weakSkeletonPtr](AnimNode::Pointer nodeIn) {
+            _networkNode = nodeIn;
+
+            // abort load if the previous skeleton was deleted.
+            auto sharedSkeletonPtr = weakSkeletonPtr.lock();
+            if (!sharedSkeletonPtr) {
+                return;
+            }
+
+            _networkNode->setSkeleton(sharedSkeletonPtr);
+
+            if (_networkAnimState.clipNodeEnum != UserAnimState::None) {
+                // restore the user animation we had before reset.
+                UserAnimState origState = _networkAnimState;
+                _networkAnimState = { UserAnimState::None, "", 30.0f, false, 0.0f, 0.0f };
+                overrideNetworkAnimation(origState.url, origState.fps, origState.loop, origState.firstFrame, origState.lastFrame);
+            }
+
+            // emit onLoadComplete();
+        });
+        connect(_networkLoader.get(), &AnimNodeLoader::error, [url](int error, QString str) {
+            qCCritical(animation) << "Error loading" << url.toDisplayString() << "code = " << error << "str =" << str;
+        });
     }
 }
 
@@ -1754,17 +1920,18 @@ bool Rig::getModelRegistrationPoint(glm::vec3& modelRegistrationPointOut) const 
 
 void Rig::applyOverridePoses() {
     DETAILED_PERFORMANCE_TIMER("override");
-    if (_numOverrides == 0 || !_animSkeleton) {
+    if ((!_sendNetworkNode && _numOverrides == 0) || (_sendNetworkNode && _numNetworkOverrides == 0) || !_animSkeleton) {
         return;
     }
+    PoseSet& poseSet = !_sendNetworkNode ? _internalPoseSet : _networkPoseSet;
 
-    ASSERT(_animSkeleton->getNumJoints() == (int)_internalPoseSet._relativePoses.size());
-    ASSERT(_animSkeleton->getNumJoints() == (int)_internalPoseSet._overrideFlags.size());
-    ASSERT(_animSkeleton->getNumJoints() == (int)_internalPoseSet._overridePoses.size());
+    ASSERT(_animSkeleton->getNumJoints() == (int)poseSet._relativePoses.size());
+    ASSERT(_animSkeleton->getNumJoints() == (int)poseSet._overrideFlags.size());
+    ASSERT(_animSkeleton->getNumJoints() == (int)poseSet._overridePoses.size());
 
-    for (size_t i = 0; i < _internalPoseSet._overrideFlags.size(); i++) {
-        if (_internalPoseSet._overrideFlags[i]) {
-            _internalPoseSet._relativePoses[i] = _internalPoseSet._overridePoses[i];
+    for (size_t i = 0; i < poseSet._overrideFlags.size(); i++) {
+        if (poseSet._overrideFlags[i]) {
+            poseSet._relativePoses[i] = poseSet._overridePoses[i];
         }
     }
 }
@@ -1810,20 +1977,19 @@ AnimPose Rig::getJointPose(int jointIndex) const {
 void Rig::copyJointsIntoJointData(QVector<JointData>& jointDataVec) const {
 
     const AnimPose geometryToRigPose(_geometryToRigTransform);
-
     jointDataVec.resize((int)getJointStateCount());
     for (auto i = 0; i < jointDataVec.size(); i++) {
         JointData& data = jointDataVec[i];
         if (isIndexValid(i)) {
             // rotations are in absolute rig frame.
             glm::quat defaultAbsRot = geometryToRigPose.rot() * _animSkeleton->getAbsoluteDefaultPose(i).rot();
-            data.rotation = _internalPoseSet._absolutePoses[i].rot();
+            data.rotation = !_sendNetworkNode ? _internalPoseSet._absolutePoses[i].rot() : _networkPoseSet._absolutePoses[i].rot();
             data.rotationIsDefaultPose = isEqual(data.rotation, defaultAbsRot);
 
             // translations are in relative frame but scaled so that they are in meters,
             // instead of geometry units.
             glm::vec3 defaultRelTrans = _geometryOffset.scale() * _animSkeleton->getRelativeDefaultPose(i).trans();
-            data.translation = _geometryOffset.scale() * _internalPoseSet._relativePoses[i].trans();
+            data.translation = _geometryOffset.scale() * (!_sendNetworkNode ? _internalPoseSet._relativePoses[i].trans() : _networkPoseSet._relativePoses[i].trans());
             data.translationIsDefaultPose = isEqual(data.translation, defaultRelTrans);
         } else {
             data.translationIsDefaultPose = true;
@@ -1886,8 +2052,9 @@ void Rig::computeExternalPoses(const glm::mat4& modelOffsetMat) {
     _rigToGeometryTransform = glm::inverse(_geometryToRigTransform);
 
     buildAbsoluteRigPoses(_internalPoseSet._relativePoses, _internalPoseSet._absolutePoses);
+    buildAbsoluteRigPoses(_networkPoseSet._relativePoses, _networkPoseSet._absolutePoses);
     QWriteLocker writeLock(&_externalPoseSetLock);
-    _externalPoseSet = _internalPoseSet;
+    _externalPoseSet = !_sendNetworkNode ? _internalPoseSet : _networkPoseSet;
 }
 
 void Rig::computeAvatarBoundingCapsule(

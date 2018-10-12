@@ -114,6 +114,10 @@ public:
 
     void overrideAnimation(const QString& url, float fps, bool loop, float firstFrame, float lastFrame);
     void restoreAnimation();
+    
+    void overrideNetworkAnimation(const QString& url, float fps, bool loop, float firstFrame, float lastFrame);
+    void restoreNetworkAnimation();
+
     QStringList getAnimationRoles() const;
     void overrideRoleAnimation(const QString& role, const QString& url, float fps, bool loop, float firstFrame, float lastFrame);
     void restoreRoleAnimation(const QString& role);
@@ -183,6 +187,7 @@ public:
     void initAnimGraph(const QUrl& url);
 
     AnimNode::ConstPointer getAnimNode() const { return _animNode; }
+    AnimNode::ConstPointer getNetworkNode() const { return _networkNode; }
     AnimSkeleton::ConstPointer getAnimSkeleton() const { return _animSkeleton; }
     QScriptValue addAnimationStateHandler(QScriptValue handler, QScriptValue propertiesList);
     void removeAnimationStateHandler(QScriptValue handler);
@@ -202,6 +207,7 @@ public:
     bool getRelativeDefaultJointTranslation(int index, glm::vec3& translationOut) const;
 
     void copyJointsIntoJointData(QVector<JointData>& jointDataVec) const;
+    void copyNetworkJointsIntoJointData(QVector<JointData>& jointDataVec) const;
     void copyJointsFromJointData(const QVector<JointData>& jointDataVec);
     void computeExternalPoses(const glm::mat4& modelOffsetMat);
 
@@ -270,6 +276,7 @@ protected:
 
     // Only accessed by the main thread
     PoseSet _internalPoseSet;
+    PoseSet _networkPoseSet;
 
     // Copy of the _poseSet for external threads.
     PoseSet _externalPoseSet;
@@ -301,9 +308,13 @@ protected:
 
     QUrl _animGraphURL;
     std::shared_ptr<AnimNode> _animNode;
+    std::shared_ptr<AnimNode> _networkNode;
     std::shared_ptr<AnimSkeleton> _animSkeleton;
+    std::shared_ptr<AnimSkeleton> _networkSkeleton;
     std::unique_ptr<AnimNodeLoader> _animLoader;
+    std::unique_ptr<AnimNodeLoader> _networkLoader;
     AnimVariantMap _animVars;
+    AnimVariantMap _networkVars;
 
     enum class RigRole {
         Idle = 0,
@@ -350,6 +361,7 @@ protected:
     };
 
     UserAnimState _userAnimState;
+    UserAnimState _networkAnimState;
     std::map<QString, RoleAnimState> _roleAnimStates;
 
     float _leftHandOverlayAlpha { 0.0f };
@@ -361,6 +373,7 @@ protected:
     std::map<QString, AnimNode::Pointer> _origRoleAnimations;
 
     int32_t _numOverrides { 0 };
+    int32_t _numNetworkOverrides { 0 };
     bool _lastEnableInverseKinematics { true };
     bool _enableInverseKinematics { true };
     bool _enabledAnimations { true };
@@ -391,6 +404,7 @@ protected:
 
     int _rigId;
     bool _headEnabled { false };
+    bool _sendNetworkNode { false };
 
     AnimContext _lastContext;
     AnimVariantMap _lastAnimVars;

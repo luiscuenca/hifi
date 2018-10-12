@@ -376,7 +376,7 @@ public:
      * }, 3000);
      */
     Q_INVOKABLE void overrideAnimation(const QString& url, float fps, bool loop, float firstFrame, float lastFrame);
-
+    Q_INVOKABLE void overrideNetworkAnimation(const QString& url, float fps, bool loop, float firstFrame, float lastFrame);
     /**jsdoc
      * The avatar animation system includes a set of default animations along with rules for how those animations are blended together with
      * procedural data (such as look at vectors, hand sensors etc.). Playing your own custom animations will override the default animations.
@@ -392,7 +392,7 @@ public:
      * }, 3000);
      */
     Q_INVOKABLE void restoreAnimation();
-
+    Q_INVOKABLE void restoreNetworkAnimation();
     /**jsdoc
      * Each avatar has an avatar-animation.json file that defines which animations are used and how they are blended together with procedural data
      * (such as look at vectors, hand sensors etc.). Each animation specified in the avatar-animation.json file is known as an animation role.
