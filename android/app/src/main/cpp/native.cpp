@@ -209,6 +209,11 @@ JNIEXPORT void Java_io_highfidelity_hifiinterface_InterfaceActivity_nativeGotoUr
     DependencyManager::get<AddressManager>()->loadSettings(jniUrl.toString());
 }
 
+JNIEXPORT void Java_io_highfidelity_hifiinterface_InterfaceActivity_nativeGoToUser(JNIEnv* env, jobject obj, jstring username) {
+    QAndroidJniObject jniUsername("java/lang/String", "(Ljava/lang/String;)V", username);
+    DependencyManager::get<AddressManager>()->goToUser(jniUsername.toString(), false);
+}
+
 JNIEXPORT void Java_io_highfidelity_hifiinterface_InterfaceActivity_nativeOnPause(JNIEnv* env, jobject obj) {
 }
 
@@ -285,6 +290,18 @@ Java_io_highfidelity_hifiinterface_fragment_LoginFragment_nativeLogin(JNIEnv *en
                               Q_ARG(const QString&, username), Q_ARG(const QString&, password));
 }
 
+JNIEXPORT jboolean JNICALL
+Java_io_highfidelity_hifiinterface_fragment_FriendsFragment_nativeIsLoggedIn(JNIEnv *env, jobject instance) {
+    auto accountManager = DependencyManager::get<AccountManager>();
+    return accountManager->isLoggedIn();
+}
+
+JNIEXPORT jstring JNICALL
+Java_io_highfidelity_hifiinterface_fragment_FriendsFragment_nativeGetAccessToken(JNIEnv *env, jobject instance) {
+    auto accountManager = DependencyManager::get<AccountManager>();
+    return env->NewStringUTF(accountManager->getAccountInfo().getAccessToken().token.toLatin1().data());
+}
+
 JNIEXPORT void JNICALL
 Java_io_highfidelity_hifiinterface_SplashActivity_registerLoadCompleteListener(JNIEnv *env,
                                                                                jobject instance) {
@@ -338,5 +355,51 @@ JNIEXPORT void Java_io_highfidelity_hifiinterface_WebViewActivity_nativeProcessU
     AndroidHelper::instance().processURL(QString::fromUtf8(nativeString));
 }
 
+JNIEXPORT void JNICALL
+Java_io_highfidelity_hifiinterface_fragment_SettingsFragment_updateHifiSetting(JNIEnv *env,
+                                                                               jobject instance,
+                                                                               jstring group_,
+                                                                               jstring key_,
+                                                                               jboolean value_) {
+    const char *c_group = env->GetStringUTFChars(group_, 0);
+    const char *c_key = env->GetStringUTFChars(key_, 0);
+
+    const QString group = QString::fromUtf8(c_group);
+    const QString key = QString::fromUtf8(c_key);
+
+    env->ReleaseStringUTFChars(group_, c_group);
+    env->ReleaseStringUTFChars(key_, c_key);
+
+    bool value = value_;
+
+    Setting::Handle<bool> setting { QStringList() << group << key , !value };
+    setting.set(value);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_io_highfidelity_hifiinterface_fragment_SettingsFragment_getHifiSettingBoolean(JNIEnv *env,
+                                                                                   jobject instance,
+                                                                                   jstring group_,
+                                                                                   jstring key_,
+                                                                                   jboolean defaultValue) {
+    const char *c_group = env->GetStringUTFChars(group_, 0);
+    const char *c_key = env->GetStringUTFChars(key_, 0);
+
+    const QString group = QString::fromUtf8(c_group);
+    const QString key = QString::fromUtf8(c_key);
+
+    env->ReleaseStringUTFChars(group_, c_group);
+    env->ReleaseStringUTFChars(key_, c_key);
+
+    Setting::Handle<bool> setting { QStringList() << group << key , defaultValue};
+    return setting.get();
+}
+
+JNIEXPORT void JNICALL
+Java_io_highfidelity_hifiinterface_receiver_HeadsetStateReceiver_notifyHeadsetOn(JNIEnv *env,
+                                                                                 jobject instance,
+                                                                                 jboolean pluggedIn) {
+    AndroidHelper::instance().notifyHeadsetOn(pluggedIn);
+}
 
 }

@@ -37,6 +37,7 @@
 AnimationPropertyGroup EntityItemProperties::_staticAnimation;
 SkyboxPropertyGroup EntityItemProperties::_staticSkybox;
 HazePropertyGroup EntityItemProperties::_staticHaze;
+BloomPropertyGroup EntityItemProperties::_staticBloom;
 KeyLightPropertyGroup EntityItemProperties::_staticKeyLight;
 AmbientLightPropertyGroup EntityItemProperties::_staticAmbientLight;
 
@@ -84,6 +85,7 @@ void EntityItemProperties::debugDump() const {
     getHaze().debugDump();
     getKeyLight().debugDump();
     getAmbientLight().debugDump();
+    getBloom().debugDump();
 
     qCDebug(entities) << "   changed properties...";
     EntityPropertyFlags props = getChangedProperties();
@@ -211,6 +213,10 @@ QString EntityItemProperties::getHazeModeAsString() const {
     return getComponentModeAsString(_hazeMode);
 }
 
+QString EntityItemProperties::getBloomModeAsString() const {
+    return getComponentModeAsString(_bloomMode);
+}
+
 QString EntityItemProperties::getComponentModeString(uint32_t mode) {
     // return "inherit" if mode is not valid
     if (mode < COMPONENT_MODE_ITEM_COUNT) {
@@ -232,6 +238,15 @@ void EntityItemProperties::setHazeModeFromString(const QString& hazeMode) {
     if (result != COMPONENT_MODES.end()) {
         _hazeMode = result->first;
         _hazeModeChanged = true;
+    }
+}
+
+void EntityItemProperties::setBloomModeFromString(const QString& bloomMode) {
+    auto result = findComponent(bloomMode);
+
+    if (result != COMPONENT_MODES.end()) {
+        _bloomMode = result->first;
+        _bloomModeChanged = true;
     }
 }
 
@@ -394,6 +409,7 @@ EntityPropertyFlags EntityItemProperties::getChangedProperties() const {
     CHECK_PROPERTY_CHANGE(PROP_KEY_LIGHT_MODE, keyLightMode);
     CHECK_PROPERTY_CHANGE(PROP_AMBIENT_LIGHT_MODE, ambientLightMode);
     CHECK_PROPERTY_CHANGE(PROP_SKYBOX_MODE, skyboxMode);
+    CHECK_PROPERTY_CHANGE(PROP_BLOOM_MODE, bloomMode);
 
     CHECK_PROPERTY_CHANGE(PROP_SOURCE_URL, sourceUrl);
     CHECK_PROPERTY_CHANGE(PROP_VOXEL_VOLUME_SIZE, voxelVolumeSize);
@@ -454,6 +470,7 @@ EntityPropertyFlags EntityItemProperties::getChangedProperties() const {
     changedProperties += _ambientLight.getChangedProperties();
     changedProperties += _skybox.getChangedProperties();
     changedProperties += _haze.getChangedProperties();
+    changedProperties += _bloom.getChangedProperties();
 
     return changedProperties;
 }
@@ -891,28 +908,30 @@ EntityPropertyFlags EntityItemProperties::getChangedProperties() const {
  * @property {string} textures="" - The URL of a JPG or PNG image file to display for each particle. If you want transparency,
  *     use PNG format.
  * @property {number} particleRadius=0.025 - The radius of each particle at the middle of its life.
- * @property {number} radiusStart=NAN - The radius of each particle at the start of its life. If NAN, the
+ * @property {number} radiusStart=NaN - The radius of each particle at the start of its life. If <code>NaN</code>, the
  *     <code>particleRadius</code> value is used.
- * @property {number} radiusFinish=NAN - The radius of each particle at the end of its life. If NAN, the
+ * @property {number} radiusFinish=NaN - The radius of each particle at the end of its life. If <code>NaN</code>, the
  *     <code>particleRadius</code> value is used.
  * @property {number} radiusSpread=0 - The spread in radius that each particle is given. If <code>particleRadius == 0.5</code>
- *     and <code>radiusSpread == 0.25</code>, each particle will have a radius in the range <code>0.25</code> &ndash; <code>0.75</code>.
+ *     and <code>radiusSpread == 0.25</code>, each particle will have a radius in the range <code>0.25</code> &ndash; 
+ *     <code>0.75</code>.
  * @property {Color} color=255,255,255 - The color of each particle at the middle of its life.
- * @property {Color} colorStart=NAN,NAN,NAN - The color of each particle at the start of its life. If any of the values are NAN, the
- *     <code>color</code> value is used.
- * @property {Color} colorFinish=NAN,NAN,NAN - The color of each particle at the end of its life. If any of the values are NAN, the
- *     <code>color</code> value is used.
+ * @property {Color} colorStart={} - The color of each particle at the start of its life. If any of the component values are 
+ *     undefined, the <code>color</code> value is used.
+ * @property {Color} colorFinish={} - The color of each particle at the end of its life. If any of the component values are 
+ *     undefined, the <code>color</code> value is used.
  * @property {Color} colorSpread=0,0,0 - The spread in color that each particle is given. If
  *     <code>color == {red: 100, green: 100, blue: 100}</code> and <code>colorSpread ==
- *     {red: 10, green: 25, blue: 50}</code>, each particle will have an acceleration in the range <code>{red: 90, green: 75, blue: 50}</code>
- *     &ndash; <code>{red: 110, green: 125, blue: 150}</code>.
+ *     {red: 10, green: 25, blue: 50}</code>, each particle will have a color in the range 
+ *     <code>{red: 90, green: 75, blue: 50}</code> &ndash; <code>{red: 110, green: 125, blue: 150}</code>.
  * @property {number} alpha=1 - The alpha of each particle at the middle of its life.
- * @property {number} alphaStart=NAN - The alpha of each particle at the start of its life. If NAN, the
+ * @property {number} alphaStart=NaN - The alpha of each particle at the start of its life. If <code>NaN</code>, the
  *     <code>alpha</code> value is used.
- * @property {number} alphaFinish=NAN - The alpha of each particle at the end of its life. If NAN, the
+ * @property {number} alphaFinish=NaN - The alpha of each particle at the end of its life. If <code>NaN</code>, the
  *     <code>alpha</code> value is used.
  * @property {number} alphaSpread=0 - The spread in alpha that each particle is given. If <code>alpha == 0.5</code>
- *     and <code>alphaSpread == 0.25</code>, each particle will have an alpha in the range <code>0.25</code> &ndash; <code>0.75</code>.
+ *     and <code>alphaSpread == 0.25</code>, each particle will have an alpha in the range <code>0.25</code> &ndash; 
+ *     <code>0.75</code>.
  * @property {number} particleSpin=0 - The spin of each particle at the middle of its life. In the range <code>-2*PI</code> &ndash; <code>2*PI</code>.
  * @property {number} spinStart=NaN - The spin of each particle at the start of its life. In the range <code>-2*PI</code> &ndash; <code>2*PI</code>.
  *     If <code>NaN</code>, the <code>particleSpin</code> value is used.
@@ -1162,6 +1181,12 @@ EntityPropertyFlags EntityItemProperties::getChangedProperties() const {
  *     <code>"enabled"</code>: The haze properties of this zone are enabled, overriding the haze from any enclosing zone.
  * @property {Entities.Haze} haze - The haze properties of the zone.
  *
+ * @property {string} bloomMode="inherit" - Configures the bloom in the zone. Possible values:<br />
+ *     <code>"inherit"</code>: The bloom from any enclosing zone continues into this zone.<br />
+ *     <code>"disabled"</code>: The bloom from any enclosing zone and the bloom of this zone are disabled in this zone.<br />
+ *     <code>"enabled"</code>: The bloom properties of this zone are enabled, overriding the bloom from any enclosing zone.
+ * @property {Entities.Bloom} bloom - The bloom properties of the zone.
+ *
  * @property {boolean} flyingAllowed=true - If <code>true</code> then visitors can fly in the zone; otherwise they cannot.
  * @property {boolean} ghostingAllowed=true - If <code>true</code> then visitors with avatar collisions turned off will not 
  *     collide with content in the zone; otherwise visitors will always collide with content in the zone.
@@ -1379,6 +1404,9 @@ QScriptValue EntityItemProperties::copyToScriptValue(QScriptEngine* engine, bool
 
         COPY_PROPERTY_TO_QSCRIPTVALUE_GETTER(PROP_HAZE_MODE, hazeMode, getHazeModeAsString());
         _haze.copyToScriptValue(_desiredProperties, properties, engine, skipDefaults, defaultEntityProperties);
+
+        COPY_PROPERTY_TO_QSCRIPTVALUE_GETTER(PROP_BLOOM_MODE, bloomMode, getBloomModeAsString());
+        _bloom.copyToScriptValue(_desiredProperties, properties, engine, skipDefaults, defaultEntityProperties);
 
         COPY_PROPERTY_TO_QSCRIPTVALUE_GETTER(PROP_KEY_LIGHT_MODE, keyLightMode, getKeyLightModeAsString());
         COPY_PROPERTY_TO_QSCRIPTVALUE_GETTER(PROP_AMBIENT_LIGHT_MODE, ambientLightMode, getAmbientLightModeAsString());
@@ -1628,6 +1656,7 @@ void EntityItemProperties::copyFromScriptValue(const QScriptValue& object, bool 
     COPY_PROPERTY_FROM_QSCRIPTVALUE_ENUM(keyLightMode, KeyLightMode);
     COPY_PROPERTY_FROM_QSCRIPTVALUE_ENUM(ambientLightMode, AmbientLightMode);
     COPY_PROPERTY_FROM_QSCRIPTVALUE_ENUM(skyboxMode, SkyboxMode);
+    COPY_PROPERTY_FROM_QSCRIPTVALUE_ENUM(bloomMode, BloomMode);
 
     COPY_PROPERTY_FROM_QSCRIPTVALUE(sourceUrl, QString, setSourceUrl);
     COPY_PROPERTY_FROM_QSCRIPTVALUE(voxelVolumeSize, vec3, setVoxelVolumeSize);
@@ -1660,6 +1689,7 @@ void EntityItemProperties::copyFromScriptValue(const QScriptValue& object, bool 
     _ambientLight.copyFromScriptValue(object, _defaultSettings);
     _skybox.copyFromScriptValue(object, _defaultSettings);
     _haze.copyFromScriptValue(object, _defaultSettings);
+    _bloom.copyFromScriptValue(object, _defaultSettings);
 
     COPY_PROPERTY_FROM_QSCRIPTVALUE(xTextureURL, QString, setXTextureURL);
     COPY_PROPERTY_FROM_QSCRIPTVALUE(yTextureURL, QString, setYTextureURL);
@@ -1801,6 +1831,7 @@ void EntityItemProperties::merge(const EntityItemProperties& other) {
     COPY_PROPERTY_IF_CHANGED(keyLightMode);
     COPY_PROPERTY_IF_CHANGED(ambientLightMode);
     COPY_PROPERTY_IF_CHANGED(skyboxMode);
+    COPY_PROPERTY_IF_CHANGED(bloomMode);
 
     COPY_PROPERTY_IF_CHANGED(sourceUrl);
     COPY_PROPERTY_IF_CHANGED(voxelVolumeSize);
@@ -1823,6 +1854,7 @@ void EntityItemProperties::merge(const EntityItemProperties& other) {
     _ambientLight.merge(other._ambientLight);
     _skybox.merge(other._skybox);
     _haze.merge(other._haze);
+    _bloom.merge(other._bloom);
 
     COPY_PROPERTY_IF_CHANGED(xTextureURL);
     COPY_PROPERTY_IF_CHANGED(yTextureURL);
@@ -2094,6 +2126,11 @@ void EntityItemProperties::entityPropertyFlagsFromScriptValue(const QScriptValue
         ADD_GROUP_PROPERTY_TO_MAP(PROP_HAZE_KEYLIGHT_RANGE, Haze, haze, HazeKeyLightRange, hazeKeyLightRange);
         ADD_GROUP_PROPERTY_TO_MAP(PROP_HAZE_KEYLIGHT_ALTITUDE, Haze, haze, HazeKeyLightAltitude, hazeKeyLightAltitude);
 
+        ADD_PROPERTY_TO_MAP(PROP_BLOOM_MODE, BloomMode, bloomMode, uint32_t);
+        ADD_GROUP_PROPERTY_TO_MAP(PROP_BLOOM_INTENSITY, Bloom, bloom, BloomIntensity, bloomIntensity);
+        ADD_GROUP_PROPERTY_TO_MAP(PROP_BLOOM_THRESHOLD, Bloom, bloom, BloomThreshold, bloomThreshold);
+        ADD_GROUP_PROPERTY_TO_MAP(PROP_BLOOM_SIZE, Bloom, bloom, BloomSize, bloomSize);
+
         ADD_PROPERTY_TO_MAP(PROP_KEY_LIGHT_MODE, KeyLightMode, keyLightMode, uint32_t);
         ADD_PROPERTY_TO_MAP(PROP_AMBIENT_LIGHT_MODE, AmbientLightMode, ambientLightMode, uint32_t);
         ADD_PROPERTY_TO_MAP(PROP_SKYBOX_MODE, SkyboxMode, skyboxMode, uint32_t);
@@ -2354,6 +2391,10 @@ OctreeElement::AppendState EntityItemProperties::encodeEntityEditPacket(PacketTy
                 APPEND_ENTITY_PROPERTY(PROP_HAZE_MODE, (uint32_t)properties.getHazeMode());
                 _staticHaze.setProperties(properties);
                 _staticHaze.appendToEditPacket(packetData, requestedProperties, propertyFlags, propertiesDidntFit, propertyCount, appendState);
+
+                APPEND_ENTITY_PROPERTY(PROP_BLOOM_MODE, (uint32_t)properties.getBloomMode());
+                _staticBloom.setProperties(properties);
+                _staticBloom.appendToEditPacket(packetData, requestedProperties, propertyFlags, propertiesDidntFit, propertyCount, appendState);
 
                 APPEND_ENTITY_PROPERTY(PROP_KEY_LIGHT_MODE, (uint32_t)properties.getKeyLightMode());
                 APPEND_ENTITY_PROPERTY(PROP_AMBIENT_LIGHT_MODE, (uint32_t)properties.getAmbientLightMode());
@@ -2729,6 +2770,9 @@ bool EntityItemProperties::decodeEntityEditPacket(const unsigned char* data, int
         READ_ENTITY_PROPERTY_TO_PROPERTIES(PROP_HAZE_MODE, uint32_t, setHazeMode);
         properties.getHaze().decodeFromEditPacket(propertyFlags, dataAt, processedBytes);
 
+        READ_ENTITY_PROPERTY_TO_PROPERTIES(PROP_BLOOM_MODE, uint32_t, setBloomMode);
+        properties.getBloom().decodeFromEditPacket(propertyFlags, dataAt, processedBytes);
+
         READ_ENTITY_PROPERTY_TO_PROPERTIES(PROP_KEY_LIGHT_MODE, uint32_t, setKeyLightMode);
         READ_ENTITY_PROPERTY_TO_PROPERTIES(PROP_AMBIENT_LIGHT_MODE, uint32_t, setAmbientLightMode);
         READ_ENTITY_PROPERTY_TO_PROPERTIES(PROP_SKYBOX_MODE, uint32_t, setSkyboxMode);
@@ -3042,10 +3086,12 @@ void EntityItemProperties::markAllChanged() {
     _skyboxModeChanged = true;
     _ambientLightModeChanged = true;
     _hazeModeChanged = true;
+    _bloomModeChanged = true;
 
     _animation.markAllChanged();
     _skybox.markAllChanged();
     _haze.markAllChanged();
+    _bloom.markAllChanged();
 
     _sourceUrlChanged = true;
     _voxelVolumeSizeChanged = true;
@@ -3440,15 +3486,15 @@ QList<QString> EntityItemProperties::listChangedProperties() {
     if (hazeModeChanged()) {
         out += "hazeMode";
     }
-
+    if (bloomModeChanged()) {
+        out += "bloomMode";
+    }
     if (keyLightModeChanged()) {
         out += "keyLightMode";
     }
-
     if (ambientLightModeChanged()) {
         out += "ambientLightMode";
     }
-
     if (skyboxModeChanged()) {
         out += "skyboxMode";
     }
@@ -3579,6 +3625,7 @@ QList<QString> EntityItemProperties::listChangedProperties() {
     getAmbientLight().listChangedProperties(out);
     getSkybox().listChangedProperties(out);
     getHaze().listChangedProperties(out);
+    getBloom().listChangedProperties(out);
 
     return out;
 }
@@ -3741,6 +3788,8 @@ bool EntityItemProperties::verifyStaticCertificateProperties() {
 void EntityItemProperties::convertToCloneProperties(const EntityItemID& entityIDToClone) {
     setName(getName() + "-clone-" + entityIDToClone.toString());
     setLocked(false);
+    setParentID(QUuid());
+    setParentJointIndex(-1);
     setLifetime(getCloneLifetime());
     setDynamic(getCloneDynamic());
     setClientOnly(getCloneAvatarEntity());

@@ -146,6 +146,9 @@ public:
     void addMaterial(graphics::MaterialLayer material, const std::string& parentMaterialName) override;
     void removeMaterial(graphics::MaterialPointer material, const std::string& parentMaterialName) override;
 
+    // FIXME: model mesh parts should fade individually
+    bool isFading() const override { return false; }
+
 protected:
     virtual void removeFromScene(const ScenePointer& scene, Transaction& transaction) override;
     virtual void onRemoveFromSceneTyped(const TypedEntityPointer& entity) override;
@@ -184,7 +187,7 @@ private:
     const void* _collisionMeshKey { nullptr };
 
     // used on client side
-    bool _jointMappingCompleted{ false };
+    bool _jointMappingCompleted { false };
     QVector<int> _jointMapping; // domain is index into model-joints, range is index into animation-joints
     AnimationPointer _animation;
     QUrl _parsedModelURL;

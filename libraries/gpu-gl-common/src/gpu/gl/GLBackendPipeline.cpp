@@ -10,6 +10,7 @@
 //
 #include "GLBackend.h"
 #include <gpu/TextureTable.h>
+#include <gpu/ShaderConstants.h>
 
 #include "GLShared.h"
 #include "GLPipeline.h"
@@ -22,9 +23,9 @@ using namespace gpu;
 using namespace gpu::gl;
 
 void GLBackend::do_setPipeline(const Batch& batch, size_t paramOffset) {
-    PipelinePointer pipeline = batch._pipelines.get(batch._params[paramOffset + 0]._uint);
+    const auto& pipeline = batch._pipelines.get(batch._params[paramOffset + 0]._uint);
 
-    if (_pipeline._pipeline == pipeline) {
+    if (compare(_pipeline._pipeline, pipeline)) {
         return;
     }
 
@@ -33,10 +34,10 @@ void GLBackend::do_setPipeline(const Batch& batch, size_t paramOffset) {
 
     // null pipeline == reset
     if (!pipeline) {
-        _pipeline._pipeline.reset();
+        reset(_pipeline._pipeline);
 
         _pipeline._program = 0;
-        _pipeline._cameraCorrectionLocation = -1;
+        _pipeline._cameraCorrection = false;
         _pipeline._programShader = nullptr;
         _pipeline._invalidProgram = true;
 
@@ -62,7 +63,7 @@ void GLBackend::do_setPipeline(const Batch& batch, size_t paramOffset) {
             _pipeline._program = glprogram;
             _pipeline._programShader = pipelineObject->_program;
             _pipeline._invalidProgram = true;
-            _pipeline._cameraCorrectionLocation = pipelineObject->_cameraCorrection;
+            _pipeline._cameraCorrection = pipelineObject->_cameraCorrection;
         }
 
         // Now for the state
@@ -72,22 +73,21 @@ void GLBackend::do_setPipeline(const Batch& batch, size_t paramOffset) {
         }
 
         // Remember the new pipeline
-        _pipeline._pipeline = pipeline;
+        assign(_pipeline._pipeline, pipeline);
     }
 
     // THis should be done on Pipeline::update...
     if (_pipeline._invalidProgram) {
         glUseProgram(_pipeline._program);
-        if (_pipeline._cameraCorrectionLocation != -1) {
-            gl::GLBuffer* cameraCorrectionBuffer = nullptr;
-            if (_transform._viewCorrectionEnabled) {
-                cameraCorrectionBuffer = syncGPUObject(*_pipeline._cameraCorrectionBuffer._buffer);
-            } else {
-                cameraCorrectionBuffer = syncGPUObject(*_pipeline._cameraCorrectionBufferIdentity._buffer);
-            }
+        if (_pipeline._cameraCorrection) {
             // Invalidate uniform buffer cache slot
-            _uniform._buffers[_pipeline._cameraCorrectionLocation].reset();
-            glBindBufferRange(GL_UNIFORM_BUFFER, _pipeline._cameraCorrectionLocation, cameraCorrectionBuffer->_id, 0, sizeof(CameraCorrection));
+            _uniform._buffers[gpu::slot::buffer::CameraCorrection].reset();
+            auto& cameraCorrectionBuffer = _transform._viewCorrectionEnabled ?
+                _pipeline._cameraCorrectionBuffer._buffer : 
+                _pipeline._cameraCorrectionBufferIdentity._buffer;
+            // Because we don't sync Buffers in the bindUniformBuffer, let s force this buffer synced
+            getBufferID(*cameraCorrectionBuffer);
+            bindUniformBuffer(gpu::slot::buffer::CameraCorrection, cameraCorrectionBuffer, 0, sizeof(CameraCorrection));
         }
         (void)CHECK_GL_ERROR();
         _pipeline._invalidProgram = false;
@@ -112,7 +112,7 @@ void GLBackend::updatePipeline() {
             _pipeline._stateSignatureCache |= _pipeline._state->_signature;
 
             // And perform
-            for (auto command : _pipeline._state->_commands) {
+            for (const auto& command : _pipeline._state->_commands) {
                 command->run(this);
             }
         } else {
@@ -134,26 +134,51 @@ void GLBackend::resetPipelineStage() {
     _pipeline._invalidProgram = false;
     _pipeline._program = 0;
     _pipeline._programShader = nullptr;
-    _pipeline._pipeline.reset();
+    reset(_pipeline._pipeline);
     glUseProgram(0);
 }
 
 void GLBackend::releaseUniformBuffer(uint32_t slot) {
-    auto& buf = _uniform._buffers[slot];
-    if (buf) {
-        auto* object = Backend::getGPUObject<GLBuffer>(*buf);
-        if (object) {
-            glBindBufferBase(GL_UNIFORM_BUFFER, slot, 0);  // RELEASE
-            (void)CHECK_GL_ERROR();
-        }
-        buf.reset();
+    auto& bufferState = _uniform._buffers[slot];
+    if (valid(bufferState.buffer)) {
+        glBindBufferBase(GL_UNIFORM_BUFFER, slot, 0);  // RELEASE
+        (void)CHECK_GL_ERROR();
     }
+    bufferState.reset();
 }
 
 void GLBackend::resetUniformStage() {
     for (uint32_t i = 0; i < _uniform._buffers.size(); i++) {
         releaseUniformBuffer(i);
     }
+}
+
+void GLBackend::bindUniformBuffer(uint32_t slot, const BufferPointer& buffer, GLintptr offset, GLsizeiptr size) {
+    if (!buffer) {
+        releaseUniformBuffer(slot);
+        return;
+    }
+
+
+    auto& currentBufferState = _uniform._buffers[slot];
+    // check cache before thinking
+    if (currentBufferState.compare(buffer, offset, size)) {
+        return;
+    }
+
+    // Grab the true gl Buffer object
+    auto glBO = getBufferIDUnsynced(*buffer);
+    if (glBO) {
+        glBindBufferRange(GL_UNIFORM_BUFFER, slot, glBO, offset, size);
+        assign(currentBufferState.buffer, buffer);
+        currentBufferState.offset = offset;
+        currentBufferState.size = size;
+        (void)CHECK_GL_ERROR();
+    } else {
+        releaseUniformBuffer(slot);
+        return;
+    }
+
 }
 
 void GLBackend::do_setUniformBuffer(const Batch& batch, size_t paramOffset) {
@@ -163,44 +188,21 @@ void GLBackend::do_setUniformBuffer(const Batch& batch, size_t paramOffset) {
                               << " which doesn't exist. MaxNumUniformBuffers = " << getMaxNumUniformBuffers();
         return;
     }
-    BufferPointer uniformBuffer = batch._buffers.get(batch._params[paramOffset + 2]._uint);
+
+    const auto& uniformBuffer = batch._buffers.get(batch._params[paramOffset + 2]._uint);
     GLintptr rangeStart = batch._params[paramOffset + 1]._uint;
     GLsizeiptr rangeSize = batch._params[paramOffset + 0]._uint;
 
-    if (!uniformBuffer) {
-        releaseUniformBuffer(slot);
-        return;
-    }
-
-    // check cache before thinking
-    if (_uniform._buffers[slot] == uniformBuffer) {
-        return;
-    }
-
-    // Sync BufferObject
-    auto* object = syncGPUObject(*uniformBuffer);
-    if (object) {
-        glBindBufferRange(GL_UNIFORM_BUFFER, slot, object->_buffer, rangeStart, rangeSize);
-
-        _uniform._buffers[slot] = uniformBuffer;
-        (void)CHECK_GL_ERROR();
-    } else {
-        releaseUniformBuffer(slot);
-        return;
-    }
+    bindUniformBuffer(slot, uniformBuffer, rangeStart, rangeSize);
 }
 
 void GLBackend::releaseResourceTexture(uint32_t slot) {
-    auto& tex = _resource._textures[slot];
-    if (tex) {
-        auto* object = Backend::getGPUObject<GLTexture>(*tex);
-        if (object) {
-            GLuint target = object->_target;
-            glActiveTexture(GL_TEXTURE0 + slot);
-            glBindTexture(target, 0);  // RELEASE
-            (void)CHECK_GL_ERROR();
-        }
-        tex.reset();
+    auto& textureState = _resource._textures[slot];
+    if (valid(textureState._texture)) {
+        glActiveTexture(GL_TEXTURE0 + slot);
+        glBindTexture(textureState._target, 0);  // RELEASE
+        (void)CHECK_GL_ERROR();
+        reset(textureState._texture);
     }
 }
 
@@ -222,14 +224,14 @@ void GLBackend::do_setResourceBuffer(const Batch& batch, size_t paramOffset) {
         return;
     }
 
-    auto resourceBuffer = batch._buffers.get(batch._params[paramOffset + 0]._uint);
+    const auto& resourceBuffer = batch._buffers.get(batch._params[paramOffset + 0]._uint);
 
     if (!resourceBuffer) {
         releaseResourceBuffer(slot);
         return;
     }
     // check cache before thinking
-    if (_resource._buffers[slot] == resourceBuffer) {
+    if (compare(_resource._buffers[slot], resourceBuffer)) {
         return;
     }
 
@@ -238,7 +240,7 @@ void GLBackend::do_setResourceBuffer(const Batch& batch, size_t paramOffset) {
 
     // If successful bind then cache it
     if (bindResourceBuffer(slot, resourceBuffer)) {
-        _resource._buffers[slot] = resourceBuffer;
+        assign(_resource._buffers[slot], resourceBuffer);
     } else {  // else clear slot and cache
         releaseResourceBuffer(slot);
         return;
@@ -283,14 +285,15 @@ void GLBackend::do_setResourceFramebufferSwapChainTexture(const Batch& batch, si
     }
     auto index = batch._params[paramOffset + 2]._uint;
     auto renderBufferSlot = batch._params[paramOffset + 3]._uint;
-    auto resourceFramebuffer = swapChain->get(index);
-    auto resourceTexture = resourceFramebuffer->getRenderBuffer(renderBufferSlot);
+    const auto& resourceFramebuffer = swapChain->get(index);
+    const auto& resourceTexture = resourceFramebuffer->getRenderBuffer(renderBufferSlot);
     setResourceTexture(slot, resourceTexture);
 }
 
 void GLBackend::setResourceTexture(unsigned int slot, const TexturePointer& resourceTexture) {
+    auto& textureState = _resource._textures[slot];
     // check cache before thinking
-    if (_resource._textures[slot] == resourceTexture) {
+    if (compare(textureState._texture, resourceTexture)) {
         return;
     }
 
@@ -300,15 +303,12 @@ void GLBackend::setResourceTexture(unsigned int slot, const TexturePointer& reso
     // Always make sure the GLObject is in sync
     GLTexture* object = syncGPUObject(resourceTexture);
     if (object) {
+        assign(textureState._texture, resourceTexture);
         GLuint to = object->_texture;
-        GLuint target = object->_target;
+        textureState._target = object->_target;
         glActiveTexture(GL_TEXTURE0 + slot);
-        glBindTexture(target, to);
-
+        glBindTexture(textureState._target, to);
         (void)CHECK_GL_ERROR();
-
-        _resource._textures[slot] = resourceTexture;
-
         _stats._RSAmountTextureMemoryBounded += (int)object->size();
 
     } else {
@@ -333,7 +333,7 @@ void GLBackend::do_setResourceTextureTable(const Batch& batch, size_t paramOffse
 int GLBackend::ResourceStageState::findEmptyTextureSlot() const {
     // start from the end of the slots, try to find an empty one that can be used
     for (auto i = MAX_NUM_RESOURCE_TEXTURES - 1; i > 0; i--) {
-        if (!_textures[i]) {
+        if (!valid(_textures[i]._texture)) {
             return i;
         }
     }

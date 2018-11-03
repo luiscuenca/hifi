@@ -33,18 +33,14 @@ class GL45Backend : public GLBackend {
     friend class Context;
 
 public:
+    static GLint MAX_COMBINED_SHADER_STORAGE_BLOCKS;
+    static GLint MAX_UNIFORM_LOCATIONS;
 #if GPU_BINDLESS_TEXTURES
     virtual bool supportsBindless() const override { return true; }
 #endif
 
-#ifdef GPU_SSBO_TRANSFORM_OBJECT
-    static const GLint TRANSFORM_OBJECT_SLOT  { 14 }; // SSBO binding slot
-#else
-    static const GLint TRANSFORM_OBJECT_SLOT  { 31 }; // TBO binding slot
-#endif
-
-    explicit GL45Backend(bool syncCache) : Parent(syncCache) {}
-    GL45Backend() : Parent() {}
+    explicit GL45Backend(bool syncCache);
+    GL45Backend();
     virtual ~GL45Backend() {
         // call resetStages here rather than in ~GLBackend dtor because it will call releaseResourceBuffer
         // which is pure virtual from GLBackend's dtor.
@@ -239,6 +235,7 @@ protected:
     GLFramebuffer* syncGPUObject(const Framebuffer& framebuffer) override;
 
     GLuint getBufferID(const Buffer& buffer) override;
+    GLuint getBufferIDUnsynced(const Buffer& buffer) override;
     GLBuffer* syncGPUObject(const Buffer& buffer) override;
 
     GLTexture* syncGPUObject(const TexturePointer& texture) override;
@@ -265,7 +262,7 @@ protected:
     void updateTransform(const Batch& batch) override;
 
     // Resource Stage
-    bool bindResourceBuffer(uint32_t slot, BufferPointer& buffer) override;
+    bool bindResourceBuffer(uint32_t slot, const BufferPointer& buffer) override;
     void releaseResourceBuffer(uint32_t slot) override;
 
     // Output stage
@@ -273,8 +270,6 @@ protected:
 
     // Shader Stage
     std::string getBackendShaderHeader() const override;
-    void makeProgramBindings(ShaderObject& shaderObject) override;
-    int makeResourceBufferSlots(const ShaderObject& shaderProgram, const Shader::BindingSet& slotBindings,Shader::SlotSet& resourceBuffers) override;
 
     // Texture Management Stage
     void initTextureManagementStage() override;

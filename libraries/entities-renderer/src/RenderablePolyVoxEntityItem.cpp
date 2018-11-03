@@ -25,13 +25,14 @@
 #include <EntityEditPacketSender.h>
 #include <PhysicalEntitySimulation.h>
 #include <StencilMaskPass.h>
+#include <graphics/ShaderConstants.h>
+#include <render/ShapePipeline.h>
+
+#include "entities-renderer/ShaderConstants.h"
+
+#include <shaders/Shaders.h>
 
 #include "EntityTreeRenderer.h"
-
-#include "polyvox_vert.h"
-#include "polyvox_frag.h"
-#include "polyvox_fade_vert.h"
-#include "polyvox_fade_frag.h"
 
 #ifdef POLYVOX_ENTITY_USE_FADE_EFFECT
 #   include <FadeEffect.h>
@@ -71,11 +72,6 @@
 #include "StencilMaskPass.h"
 
 #include "EntityTreeRenderer.h"
-
-#include "polyvox_vert.h"
-#include "polyvox_frag.h"
-#include "polyvox_fade_vert.h"
-#include "polyvox_fade_frag.h"
 
 #include "RenderablePolyVoxEntityItem.h"
 #include "EntityEditPacketSender.h"
@@ -575,7 +571,6 @@ bool RenderablePolyVoxEntityItem::findDetailedRayIntersection(const glm::vec3& o
     }
 
     glm::mat4 wtvMatrix = worldToVoxelMatrix();
-    glm::mat4 vtwMatrix = voxelToWorldMatrix();
     glm::vec3 normDirection = glm::normalize(direction);
 
     // the PolyVox ray intersection code requires a near and far point.
@@ -587,8 +582,6 @@ bool RenderablePolyVoxEntityItem::findDetailedRayIntersection(const glm::vec3& o
 
     glm::vec4 originInVoxel = wtvMatrix * glm::vec4(origin, 1.0f);
     glm::vec4 farInVoxel = wtvMatrix * glm::vec4(farPoint, 1.0f);
-
-    glm::vec4 directionInVoxel = glm::normalize(farInVoxel - originInVoxel);
 
     glm::vec4 result = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
     PolyVox::RaycastResult raycastResult = doRayCast(originInVoxel, farInVoxel, result);
@@ -603,14 +596,9 @@ bool RenderablePolyVoxEntityItem::findDetailedRayIntersection(const glm::vec3& o
     voxelBox += result3 - Vectors::HALF;
     voxelBox += result3 + Vectors::HALF;
 
-    float voxelDistance;
-    bool hit = voxelBox.findRayIntersection(glm::vec3(originInVoxel), glm::vec3(directionInVoxel),
-                                            voxelDistance, face, surfaceNormal);
-
-    glm::vec4 voxelIntersectionPoint = glm::vec4(glm::vec3(originInVoxel) + glm::vec3(directionInVoxel) * voxelDistance, 1.0);
-    glm::vec4 intersectionPoint = vtwMatrix * voxelIntersectionPoint;
-    distance = glm::distance(origin, glm::vec3(intersectionPoint));
-    return hit;
+    glm::vec3 directionInVoxel = vec3(wtvMatrix * glm::vec4(direction, 0.0f));
+    return voxelBox.findRayIntersection(glm::vec3(originInVoxel), directionInVoxel, 1.0f / directionInVoxel,
+                                        distance, face, surfaceNormal);
 }
 
 bool RenderablePolyVoxEntityItem::findDetailedParabolaIntersection(const glm::vec3& origin, const glm::vec3& velocity,
@@ -1564,7 +1552,6 @@ scriptable::ScriptableModelBase RenderablePolyVoxEntityItem::getScriptableModel(
 using namespace render;
 using namespace render::entities;
 
-static const int MATERIAL_GPU_SLOT { 3 };
 static uint8_t CUSTOM_PIPELINE_NUMBER;
 static gpu::PipelinePointer _pipelines[2];
 static gpu::PipelinePointer _wireframePipelines[2];
@@ -1572,17 +1559,8 @@ static gpu::Stream::FormatPointer _vertexFormat;
 
 ShapePipelinePointer shapePipelineFactory(const ShapePlumber& plumber, const ShapeKey& key, gpu::Batch& batch) {
     if (!_pipelines[0]) {
-        gpu::ShaderPointer vertexShaders[2] = { polyvox_vert::getShader(), polyvox_fade_vert::getShader() };
-        gpu::ShaderPointer pixelShaders[2] = { polyvox_frag::getShader(), polyvox_fade_frag::getShader() };
-
-        gpu::Shader::BindingSet slotBindings;
-        slotBindings.insert(gpu::Shader::Binding(std::string("materialBuffer"), MATERIAL_GPU_SLOT));
-        slotBindings.insert(gpu::Shader::Binding(std::string("xMap"), 0));
-        slotBindings.insert(gpu::Shader::Binding(std::string("yMap"), 1));
-        slotBindings.insert(gpu::Shader::Binding(std::string("zMap"), 2));
-#ifdef POLYVOX_ENTITY_USE_FADE_EFFECT
-        slotBindings.insert(gpu::Shader::Binding(std::string("fadeMaskMap"), 3));
-#endif
+        using namespace shader::entities_renderer::program;
+        int programsIds[2] = { polyvox, polyvox_fade };
 
         auto state = std::make_shared<gpu::State>();
         state->setCullMode(gpu::State::CULL_BACK);
@@ -1597,12 +1575,7 @@ ShapePipelinePointer shapePipelineFactory(const ShapePlumber& plumber, const Sha
 
         // Two sets of pipelines: normal and fading
         for (auto i = 0; i < 2; i++) {
-            gpu::ShaderPointer program = gpu::Shader::createProgram(vertexShaders[i], pixelShaders[i]);
-         
-            batch.runLambda([program, slotBindings] {
-                gpu::Shader::makeProgram(*program, slotBindings);
-            });
-
+            gpu::ShaderPointer program = gpu::Shader::createProgram(programsIds[i]);
             _pipelines[i] = gpu::Pipeline::create(program, state);
             _wireframePipelines[i] = gpu::Pipeline::create(program, wireframeState);
         }
@@ -1636,6 +1609,7 @@ PolyVoxEntityRenderer::PolyVoxEntityRenderer(const EntityItemPointer& entity) : 
         _vertexFormat->setAttribute(gpu::Stream::POSITION, 0, gpu::Element(gpu::VEC3, gpu::FLOAT, gpu::XYZ), 0);
         _vertexFormat->setAttribute(gpu::Stream::NORMAL, 0, gpu::Element(gpu::VEC3, gpu::FLOAT, gpu::XYZ), 12);
     });
+    _params = std::make_shared<gpu::Buffer>(sizeof(glm::vec4), nullptr);
 }
 
 ShapeKey PolyVoxEntityRenderer::getShapeKey() {
@@ -1698,9 +1672,12 @@ void PolyVoxEntityRenderer::doRenderUpdateSynchronousTyped(const ScenePointer& s
 
 void PolyVoxEntityRenderer::doRenderUpdateAsynchronousTyped(const TypedEntityPointer& entity) {
     _lastVoxelToWorldMatrix = entity->voxelToWorldMatrix();
+    _lastVoxelVolumeSize = entity->getVoxelVolumeSize();
+    _params->setSubData(0, vec4(_lastVoxelVolumeSize, 0.0));
     graphics::MeshPointer newMesh;
     entity->withReadLock([&] {
         newMesh = entity->_mesh;
+
     });
 
     if (newMesh && newMesh->getIndexBuffer()._buffer) {
@@ -1713,6 +1690,7 @@ void PolyVoxEntityRenderer::doRender(RenderArgs* args) {
         return;
     }
 
+
     PerformanceTimer perfTimer("RenderablePolyVoxEntityItem::render");
     gpu::Batch& batch = *args->_batch;
 
@@ -1721,6 +1699,7 @@ void PolyVoxEntityRenderer::doRender(RenderArgs* args) {
     batch.setInputFormat(_vertexFormat);
     batch.setInputBuffer(gpu::Stream::POSITION, _mesh->getVertexBuffer()._buffer, 0,
         sizeof(PolyVox::PositionMaterialNormal));
+
 
     // TODO -- should we be setting this?
     // batch.setInputBuffer(gpu::Stream::NORMAL, mesh->getVertexBuffer()._buffer,
@@ -1737,8 +1716,7 @@ void PolyVoxEntityRenderer::doRender(RenderArgs* args) {
         }
     }
 
-    int voxelVolumeSizeLocation = args->_shapePipeline->pipeline->getProgram()->getUniforms().findLocation("voxelVolumeSize");
-    batch._glUniform3f(voxelVolumeSizeLocation, _lastVoxelVolumeSize.x, _lastVoxelVolumeSize.y, _lastVoxelVolumeSize.z);
+    batch.setUniformBuffer(0, _params);
     batch.drawIndexed(gpu::TRIANGLES, (gpu::uint32)_mesh->getNumIndices(), 0);
 }
 

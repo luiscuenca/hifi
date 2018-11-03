@@ -12,11 +12,9 @@
 #include <StencilMaskPass.h>
 
 #include <DependencyManager.h>
+#include <shaders/Shaders.h>
+
 #include "ParabolaPick.h"
-
-#include "render-utils/parabola_vert.h"
-#include "render-utils/parabola_frag.h"
-
 const glm::vec4 ParabolaPointer::RenderState::ParabolaRenderItem::DEFAULT_PARABOLA_COLOR { 1.0f };
 const float ParabolaPointer::RenderState::ParabolaRenderItem::DEFAULT_PARABOLA_WIDTH { 0.01f };
 const bool ParabolaPointer::RenderState::ParabolaRenderItem::DEFAULT_PARABOLA_ISVISIBLEINSECONDARYCAMERA { false };
@@ -30,6 +28,14 @@ ParabolaPointer::ParabolaPointer(const QVariant& rayProps, const RenderStateMap&
     PathPointer(PickQuery::Parabola, rayProps, renderStates, defaultRenderStates, hover, triggers, faceAvatar, followNormal, followNormalStrength,
                 centerEndY, lockEnd, distanceScaleEnd, scaleWithAvatar, enabled)
 {
+}
+
+PickResultPointer ParabolaPointer::getPickResultCopy(const PickResultPointer& pickResult) const {
+    auto parabolaPickResult = std::dynamic_pointer_cast<ParabolaPickResult>(pickResult);
+    if (!parabolaPickResult) {
+        return std::make_shared<ParabolaPickResult>();
+    }
+    return std::make_shared<ParabolaPickResult>(*parabolaPickResult.get());
 }
 
 void ParabolaPointer::editRenderStatePath(const std::string& state, const QVariant& pathProps) {
@@ -62,6 +68,35 @@ void ParabolaPointer::editRenderStatePath(const std::string& state, const QVaria
     }
 }
 
+QVariantMap ParabolaPointer::toVariantMap() const {
+    QVariantMap qVariantMap;
+
+    QVariantMap qRenderStates;
+    for (auto iter = _renderStates.cbegin(); iter != _renderStates.cend(); iter++) {
+        auto renderState = iter->second;
+        QVariantMap qRenderState;
+        qRenderState["start"] = renderState->getStartID();
+        qRenderState["end"] = renderState->getEndID();
+        qRenderStates[iter->first.c_str()] = qRenderState;
+    }
+    qVariantMap["renderStates"] = qRenderStates;
+
+    QVariantMap qDefaultRenderStates;
+    for (auto iter = _defaultRenderStates.cbegin(); iter != _defaultRenderStates.cend(); iter++) {
+        float distance = iter->second.first;
+        auto defaultRenderState = iter->second.second;
+        QVariantMap qDefaultRenderState;
+
+        qDefaultRenderState["distance"] = distance;
+        qDefaultRenderState["start"] = defaultRenderState->getStartID();
+        qDefaultRenderState["end"] = defaultRenderState->getEndID();
+        qDefaultRenderStates[iter->first.c_str()] = qDefaultRenderState;
+    }
+    qVariantMap["defaultRenderStates"] = qDefaultRenderStates;
+
+    return qVariantMap;
+}
+
 glm::vec3 ParabolaPointer::getPickOrigin(const PickResultPointer& pickResult) const {
     auto parabolaPickResult = std::static_pointer_cast<ParabolaPickResult>(pickResult);
     return (parabolaPickResult ? vec3FromVariant(parabolaPickResult->pickVariant["origin"]) : glm::vec3(0.0f));
@@ -69,6 +104,9 @@ glm::vec3 ParabolaPointer::getPickOrigin(const PickResultPointer& pickResult) co
 
 glm::vec3 ParabolaPointer::getPickEnd(const PickResultPointer& pickResult, float distance) const {
     auto parabolaPickResult = std::static_pointer_cast<ParabolaPickResult>(pickResult);
+    if (!parabolaPickResult) {
+        return glm::vec3(0.0f);
+    }
     if (distance > 0.0f) {
         PickParabola pick = PickParabola(parabolaPickResult->pickVariant);
         return pick.origin + pick.velocity * distance + 0.5f * pick.acceleration * distance * distance;
@@ -117,8 +155,6 @@ ParabolaPointer::RenderState::RenderState(const OverlayID& startID, const Overla
     _pathWidth = pathWidth;
     if (render::Item::isValidID(_pathID)) {
         auto renderItem = std::make_shared<ParabolaRenderItem>(pathColor, pathAlpha, pathWidth, isVisibleInSecondaryCamera, pathEnabled);
-        // TODO: update bounds properly
-        renderItem->editBound().setBox(glm::vec3(-16000.0f), 32000.0f);
         transaction.resetItem(_pathID, std::make_shared<ParabolaRenderItem::Payload>(renderItem));
         scene->enqueueTransaction(transaction);
     }
@@ -182,6 +218,7 @@ void ParabolaPointer::RenderState::update(const glm::vec3& origin, const glm::ve
             item.setAcceleration(acceleration);
             item.setParabolicDistance(parabolicDistance);
             item.setWidth(width);
+            item.updateBounds();
         });
         scene->enqueueTransaction(transaction);
     }
@@ -304,10 +341,10 @@ void ParabolaPointer::RenderState::ParabolaRenderItem::setVisible(bool visible) 
 }
 
 void ParabolaPointer::RenderState::ParabolaRenderItem::updateKey() {
-    // FIXME: There's no way to designate a render item as non-shadow-reciever, and since a parabola's bounding box covers the entire domain,
-    // it seems to block all shadows.  I think this is a bug with shadows.
-    //auto builder = _parabolaData.color.a < 1.0f ? render::ItemKey::Builder::transparentShape() : render::ItemKey::Builder::opaqueShape();
-    auto builder = render::ItemKey::Builder::transparentShape();
+    auto builder = _parabolaData.color.a < 1.0f ? render::ItemKey::Builder::transparentShape() : render::ItemKey::Builder::opaqueShape();
+
+    // TODO: parabolas should cast shadows, but they're so thin that the cascaded shadow maps make them look pretty bad
+    //builder.withShadowCaster();
 
     if (_enabled && _visible) {
         builder.withVisible();
@@ -324,17 +361,37 @@ void ParabolaPointer::RenderState::ParabolaRenderItem::updateKey() {
     _key = builder.build();
 }
 
+void ParabolaPointer::RenderState::ParabolaRenderItem::updateBounds() {
+    glm::vec3 max = _origin;
+    glm::vec3 min = _origin;
+
+    glm::vec3 end = _origin + _parabolaData.velocity * _parabolaData.parabolicDistance +
+        0.5f * _parabolaData.acceleration * _parabolaData.parabolicDistance * _parabolaData.parabolicDistance;
+    max = glm::max(max, end);
+    min = glm::min(min, end);
+
+    for (int i = 0; i < 3; i++) {
+        if (fabsf(_parabolaData.velocity[i]) > EPSILON && fabsf(_parabolaData.acceleration[i]) > EPSILON) {
+            float maxT = -_parabolaData.velocity[i] / _parabolaData.acceleration[i];
+            if (maxT > 0.0f && maxT < _parabolaData.parabolicDistance) {
+                glm::vec3 maxPoint = _origin + _parabolaData.velocity * maxT + 0.5f * _parabolaData.acceleration * maxT * maxT;
+                max = glm::max(max, maxPoint);
+                min = glm::min(min, maxPoint);
+            }
+        }
+    }
+
+    glm::vec3 halfWidth = glm::vec3(0.5f * _parabolaData.width);
+    max += halfWidth;
+    min -= halfWidth;
+
+    _bound = AABox(min, max - min);
+}
+
 const gpu::PipelinePointer ParabolaPointer::RenderState::ParabolaRenderItem::getParabolaPipeline() {
     if (!_parabolaPipeline || !_transparentParabolaPipeline) {
-        auto vs = parabola_vert::getShader();
-        auto ps = parabola_frag::getShader();
-        gpu::ShaderPointer program = gpu::Shader::createProgram(vs, ps);
-
-        gpu::Shader::BindingSet slotBindings;
-        slotBindings.insert(gpu::Shader::Binding(std::string("parabolaData"), 0));
-        gpu::Shader::makeProgram(*program, slotBindings);
-
         {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render_utils::program::parabola);
             auto state = std::make_shared<gpu::State>();
             state->setDepthTest(true, true, gpu::LESS_EQUAL);
             state->setBlendFunction(false,
@@ -346,6 +403,7 @@ const gpu::PipelinePointer ParabolaPointer::RenderState::ParabolaRenderItem::get
         }
 
         {
+            gpu::ShaderPointer program = gpu::Shader::createProgram(shader::render_utils::program::parabola_translucent);
             auto state = std::make_shared<gpu::State>();
             state->setDepthTest(true, true, gpu::LESS_EQUAL);
             state->setBlendFunction(true,

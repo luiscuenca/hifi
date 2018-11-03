@@ -148,14 +148,6 @@ private:
 
 #include "Highlight_shared.slh"
 
-    enum {
-        SCENE_DEPTH_MAP_SLOT = 0,
-        HIGHLIGHTED_DEPTH_MAP_SLOT,
-
-        HIGHLIGHT_PARAMS_SLOT = 0,
-        FRAME_TRANSFORM_SLOT,
-    };
-
     using HighlightConfigurationBuffer = gpu::StructBuffer<HighlightParameters>;
 
     static const gpu::PipelinePointer& getPipeline(const render::HighlightStyle& style);
@@ -216,8 +208,6 @@ public:
     void build(JobModel& task, const render::Varying& inputs, render::Varying& outputs);
 
 private:
-
-    static void initMaskPipelines(render::ShapePlumber& plumber, gpu::StatePointer state);
     static const render::Varying addSelectItemJobs(JobModel& task, const render::Varying& selectionName, const RenderFetchCullSortTask::BucketList& items);
 
 };

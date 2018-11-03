@@ -13,6 +13,7 @@ package io.highfidelity.hifiinterface;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -40,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import io.highfidelity.hifiinterface.fragment.WebViewFragment;
+import io.highfidelity.hifiinterface.receiver.HeadsetStateReceiver;
 
 /*import com.google.vr.cardboard.DisplaySynchronizer;
 import com.google.vr.cardboard.DisplayUtils;
@@ -48,17 +50,20 @@ import com.google.vr.ndk.base.GvrApi;*/
 public class InterfaceActivity extends QtActivity implements WebViewFragment.OnWebViewInteractionListener {
 
     public static final String DOMAIN_URL = "url";
+    public static final String EXTRA_GOTO_USERNAME = "gotousername";
     private static final String TAG = "Interface";
     private static final int WEB_DRAWER_RIGHT_MARGIN = 262;
     private static final int WEB_DRAWER_BOTTOM_MARGIN = 150;
     private static final int NORMAL_DPI = 160;
 
     private Vibrator mVibrator;
+    private HeadsetStateReceiver headsetStateReceiver;
 
     //public static native void handleHifiURL(String hifiURLString);
     private native long nativeOnCreate(InterfaceActivity instance, AssetManager assetManager);
     private native void nativeOnDestroy();
     private native void nativeGotoUrl(String url);
+    private native void nativeGoToUser(String username);
     private native void nativeBeforeEnterBackground();
     private native void nativeEnterBackground();
     private native void nativeEnterForeground();
@@ -149,6 +154,8 @@ public class InterfaceActivity extends QtActivity implements WebViewFragment.OnW
         layoutParams.resolveLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         qtLayout.addView(webSlidingDrawer, layoutParams);
         webSlidingDrawer.setVisibility(View.GONE);
+
+        headsetStateReceiver = new HeadsetStateReceiver();
     }
 
     @Override
@@ -159,6 +166,7 @@ public class InterfaceActivity extends QtActivity implements WebViewFragment.OnW
         } else {
             nativeEnterBackground();
         }
+        unregisterReceiver(headsetStateReceiver);
         //gvrApi.pauseTracking();
     }
 
@@ -181,6 +189,7 @@ public class InterfaceActivity extends QtActivity implements WebViewFragment.OnW
         nativeEnterForeground();
         surfacesWorkaround();
         keepInterfaceRunning = false;
+        registerReceiver(headsetStateReceiver, new IntentFilter(Intent.ACTION_HEADSET_PLUG));
         //gvrApi.resumeTracking();
     }
 
@@ -280,6 +289,9 @@ public class InterfaceActivity extends QtActivity implements WebViewFragment.OnW
         if (intent.hasExtra(DOMAIN_URL)) {
             webSlidingDrawer.setVisibility(View.GONE);
             nativeGotoUrl(intent.getStringExtra(DOMAIN_URL));
+        } else if (intent.hasExtra(EXTRA_GOTO_USERNAME)) {
+            webSlidingDrawer.setVisibility(View.GONE);
+            nativeGoToUser(intent.getStringExtra(EXTRA_GOTO_USERNAME));
         }
     }
 

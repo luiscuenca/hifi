@@ -38,6 +38,8 @@
 #include <EntityScriptClient.h>
 #include <Profile.h>
 
+const QString GRABBABLE_USER_DATA = "{\"grabbableKey\":{\"grabbable\":true}}";
+const QString NOT_GRABBABLE_USER_DATA = "{\"grabbableKey\":{\"grabbable\":false}}";
 
 EntityScriptingInterface::EntityScriptingInterface(bool bidOnSimulationOwnership) :
     _entityTree(NULL),
@@ -130,8 +132,8 @@ EntityItemProperties convertPropertiesToScriptSemantics(const EntityItemProperti
     EntityItemProperties scriptSideProperties = entitySideProperties;
     scriptSideProperties.setLocalPosition(entitySideProperties.getPosition());
     scriptSideProperties.setLocalRotation(entitySideProperties.getRotation());
-    scriptSideProperties.setLocalVelocity(entitySideProperties.getLocalVelocity());
-    scriptSideProperties.setLocalAngularVelocity(entitySideProperties.getLocalAngularVelocity());
+    scriptSideProperties.setLocalVelocity(entitySideProperties.getVelocity());
+    scriptSideProperties.setLocalAngularVelocity(entitySideProperties.getAngularVelocity());
     scriptSideProperties.setLocalDimensions(entitySideProperties.getDimensions());
 
     bool success;
@@ -178,8 +180,6 @@ EntityItemProperties convertPropertiesFromScriptSemantics(const EntityItemProper
     // are set.  If they are set, they overwrite position and rotation.
     EntityItemProperties entitySideProperties = scriptSideProperties;
     bool success;
-
-    // TODO -- handle velocity and angularVelocity
 
     if (scriptSideProperties.localPositionChanged()) {
         entitySideProperties.setPosition(scriptSideProperties.getLocalPosition());
@@ -303,7 +303,7 @@ bool EntityScriptingInterface::addLocalEntityCopy(EntityItemProperties& properti
 }
 
 QUuid EntityScriptingInterface::addModelEntity(const QString& name, const QString& modelUrl, const QString& textures,
-                                                const QString& shapeType, bool dynamic, bool collisionless,
+                                                const QString& shapeType, bool dynamic, bool collisionless, bool grabbable,
                                                 const glm::vec3& position, const glm::vec3& gravity) {
     _activityTracking.addedEntityCount++;
 
@@ -314,6 +314,7 @@ QUuid EntityScriptingInterface::addModelEntity(const QString& name, const QStrin
     properties.setShapeTypeFromString(shapeType);
     properties.setDynamic(dynamic);
     properties.setCollisionless(collisionless);
+    properties.setUserData(grabbable ? GRABBABLE_USER_DATA : NOT_GRABBABLE_USER_DATA);
     properties.setPosition(position);
     properties.setGravity(gravity);
     if (!textures.isEmpty()) {
@@ -571,7 +572,7 @@ void EntityScriptingInterface::deleteEntity(QUuid id) {
     _activityTracking.deletedEntityCount++;
 
     EntityItemID entityID(id);
-    bool shouldDelete = true;
+    bool shouldSendDeleteToServer = true;
 
     // If we have a local entity tree set, then also update it.
     if (_entityTree) {
@@ -588,16 +589,21 @@ void EntityScriptingInterface::deleteEntity(QUuid id) {
                     auto avatarHashMap = DependencyManager::get<AvatarHashMap>();
                     AvatarSharedPointer myAvatar = avatarHashMap->getAvatarBySessionID(myNodeID);
                     myAvatar->insertDetachedEntityID(id);
-                    shouldDelete = false;
+                    shouldSendDeleteToServer = false;
                     return;
                 }
 
                 if (entity->getLocked()) {
-                    shouldDelete = false;
+                    shouldSendDeleteToServer = false;
                 } else {
                     // only delete local entities, server entities will round trip through the server filters
                     if (entity->getClientOnly() || _entityTree->isServerlessMode()) {
+                        shouldSendDeleteToServer = false;
                         _entityTree->deleteEntity(entityID);
+
+                        if (entity->getClientOnly() && getEntityPacketSender()->getMyAvatar()) {
+                            getEntityPacketSender()->getMyAvatar()->clearAvatarEntity(entityID, false);
+                        }
                     }
                 }
             }
@@ -605,7 +611,7 @@ void EntityScriptingInterface::deleteEntity(QUuid id) {
     }
 
     // if at this point, we know the id, and we should still delete the entity, send the update to the entity server
-    if (shouldDelete) {
+    if (shouldSendDeleteToServer) {
         getEntityPacketSender()->queueEraseEntityMessage(entityID);
     }
 }
@@ -1249,7 +1255,7 @@ bool EntityScriptingInterface::actionWorker(const QUuid& entityID,
 
     EntityItemPointer entity;
     bool doTransmit = false;
-    _entityTree->withWriteLock([&] {
+    _entityTree->withWriteLock([this, &entity, entityID, myNodeID, &doTransmit, actor, &properties] {
         EntitySimulationPointer simulation = _entityTree->getSimulation();
         entity = _entityTree->findEntityByEntityItemID(entityID);
         if (!entity) {

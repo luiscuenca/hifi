@@ -12,6 +12,7 @@
 #ifndef hifi_ScriptEngine_h
 #define hifi_ScriptEngine_h
 
+#include <unordered_map>
 #include <vector>
 
 #include <QtCore/QObject>
@@ -70,6 +71,17 @@ public:
     QString entityScript;
     //bool forceRedownload;
 };
+
+struct EntityScriptContentAvailable {
+    EntityItemID entityID;
+    QString scriptOrURL;
+    QString contents;
+    bool isURL;
+    bool success;
+    QString status;
+};
+
+typedef std::unordered_map<EntityItemID, EntityScriptContentAvailable> EntityScriptContentAvailableMap;
 
 typedef QList<CallbackData> CallbackList;
 typedef QHash<QString, CallbackList> RegisteredEventHandlers;
@@ -449,7 +461,9 @@ public:
      * @returns {boolean}
      */
     Q_INVOKABLE bool isEntityScriptRunning(const EntityItemID& entityID) {
-        return _entityScripts.contains(entityID) && _entityScripts[entityID].status == EntityScriptStatus::RUNNING;
+        QReadLocker locker { &_entityScriptsLock };
+        auto it = _entityScripts.constFind(entityID);
+        return it != _entityScripts.constEnd() && it->status == EntityScriptStatus::RUNNING;
     }
     QVariant cloneEntityScriptDetails(const EntityItemID& entityID);
     QFuture<QVariant> getLocalEntityScriptDetails(const EntityItemID& entityID) override;
@@ -547,6 +561,7 @@ public:
     void clearDebugLogWindow();
     int getNumRunningEntityScripts() const;
     bool getEntityScriptDetails(const EntityItemID& entityID, EntityScriptDetails &details) const;
+    bool hasEntityScriptDetails(const EntityItemID& entityID) const;
 
 public slots:
 
@@ -759,9 +774,11 @@ protected:
     bool _isInitialized { false };
     QHash<QTimer*, CallbackData> _timerFunctionMap;
     QSet<QUrl> _includedURLs;
+    mutable QReadWriteLock _entityScriptsLock { QReadWriteLock::Recursive };
     QHash<EntityItemID, EntityScriptDetails> _entityScripts;
     QHash<QString, EntityItemID> _occupiedScriptURLs;
     QList<DeferredLoadEntity> _deferredEntityLoads;
+    EntityScriptContentAvailableMap _contentAvailableQueue;
 
     bool _isThreaded { false };
     QScriptEngineDebugger* _debugger { nullptr };
@@ -793,8 +810,6 @@ protected:
     static const QString _SETTINGS_ENABLE_EXTENDED_EXCEPTIONS;
 
     Setting::Handle<bool> _enableExtendedJSExceptions { _SETTINGS_ENABLE_EXTENDED_EXCEPTIONS, true };
-
-    QSharedPointer<ScriptEngines> _scriptEngines;
 };
 
 ScriptEnginePointer scriptEngineFactory(ScriptEngine::Context context,

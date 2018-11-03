@@ -56,7 +56,7 @@ public:
         ICEServerPeerInformation,
         ICEServerQuery,
         OctreeStats,
-        UNUSED_PACKET_TYPE_1,
+        SetAvatarTraits,
         AvatarIdentityRequest,
         AssignmentClientStatus,
         NoisyMute,
@@ -132,6 +132,8 @@ public:
         OctreeDataPersist,
 
         EntityClone,
+        EntityQueryInitialResultsComplete,
+        BulkAvatarTraits,
 
         NUM_PACKET_TYPE
     };
@@ -239,7 +241,8 @@ enum class EntityVersion : PacketVersion {
     CollisionMask16Bytes,
     YieldSimulationOwnership,
     ParticleEntityFix,
-    ParticleSpin
+    ParticleSpin,
+    BloomEffect
 };
 
 enum class EntityScriptCallMethodVersion : PacketVersion {
@@ -287,7 +290,10 @@ enum class AvatarMixerPacketVersion : PacketVersion {
     AvatarJointDefaultPoseFlags,
     FBXReaderNodeReparenting,
     FixMannequinDefaultAvatarFeet,
-    ProceduralFaceMovementFlagsAndBlendshapes
+    ProceduralFaceMovementFlagsAndBlendshapes,
+    FarGrabJoints,
+    MigrateSkeletonURLToTraits,
+    MigrateAvatarEntitiesToTraits
 };
 
 enum class DomainConnectRequestVersion : PacketVersion {
@@ -314,7 +320,8 @@ enum class DomainListVersion : PacketVersion {
     PrePermissionsGrid = 18,
     PermissionsGrid,
     GetUsernameFromUUIDSupport,
-    GetMachineFingerprintFromUUIDSupport
+    GetMachineFingerprintFromUUIDSupport,
+    AuthenticationOptional
 };
 
 enum class AudioVersion : PacketVersion {

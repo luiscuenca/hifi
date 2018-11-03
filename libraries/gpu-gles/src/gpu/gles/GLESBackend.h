@@ -130,6 +130,7 @@ protected:
     GLFramebuffer* syncGPUObject(const Framebuffer& framebuffer) override;
 
     GLuint getBufferID(const Buffer& buffer) override;
+    GLuint getBufferIDUnsynced(const Buffer& buffer) override;
     GLuint getResourceBufferID(const Buffer& buffer);
     GLBuffer* syncGPUObject(const Buffer& buffer) override;
 
@@ -156,16 +157,13 @@ protected:
     void updateTransform(const Batch& batch) override;
 
     // Resource Stage
-    bool bindResourceBuffer(uint32_t slot, BufferPointer& buffer) override;
+    bool bindResourceBuffer(uint32_t slot, const BufferPointer& buffer) override;
     void releaseResourceBuffer(uint32_t slot) override;
 
     // Output stage
     void do_blit(const Batch& batch, size_t paramOffset) override;
     
     std::string getBackendShaderHeader() const override;
-    void makeProgramBindings(ShaderObject& shaderObject) override;
-    int makeResourceBufferSlots(const ShaderObject& shaderObject, const Shader::BindingSet& slotBindings,Shader::SlotSet& resourceBuffers) override;
-
 };
 
 } }

@@ -21,6 +21,7 @@
 #include <QtCore/QTimer>
 #include <QUuid>
 
+#include <ClientTraitsHandler.h>
 #include <EntityEditPacketSender.h>
 #include <EntityTree.h>
 #include <ScriptEngine.h>
@@ -66,6 +67,8 @@ public slots:
 
     void setIsAvatar(bool isAvatar);
     bool isAvatar() const { return _isAvatar; }
+
+    Q_INVOKABLE virtual void stop() override;
 
 private slots:
     void requestScript();
