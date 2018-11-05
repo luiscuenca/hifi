@@ -320,6 +320,7 @@ public:
 
     QVector<FBXMesh> meshes;
     QVector<QString> scripts;
+    QMap<int, glm::quat> jointRotationOffsets;
 
     QHash<QString, FBXMaterial> materials;
 
@@ -340,7 +341,7 @@ public:
     float rightEyeSize = 0.0f;
 
     QVector<int> humanIKJointIndices;
-
+    
     glm::vec3 palmDirection;
 
     glm::vec3 neckPivot;

@@ -231,8 +231,6 @@ public:
     const AnimContext::DebugAlphaMap& getDebugAlphaMap() const { return _lastContext.getDebugAlphaMap(); }
     const AnimVariantMap& getAnimVars() const { return _lastAnimVars; }
     const AnimContext::DebugStateMachineMap& getStateMachineMap() const { return _lastContext.getStateMachineMap(); }
-    
-    void setJointRotationOffsets(const QMap<QString, glm::quat>& offsets);
 
 signals:
     void onLoadComplete();
