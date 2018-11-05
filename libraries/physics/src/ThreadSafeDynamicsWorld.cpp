@@ -201,7 +201,6 @@ void ThreadSafeDynamicsWorld::drawConnectedSpheres(btIDebugDraw* drawer, btScala
 
 void ThreadSafeDynamicsWorld::debugDrawObject(const btTransform& worldTransform, const btCollisionShape* shape, const btVector3& color) {
     
-    qDebug() << "Calling draw object";
     btCollisionWorld::debugDrawObject(worldTransform, shape, color);
     if (shape->getShapeType() == MULTI_SPHERE_SHAPE_PROXYTYPE) {
         const btMultiSphereShape* multiSphereShape = static_cast<const btMultiSphereShape*>(shape);

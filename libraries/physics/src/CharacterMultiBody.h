@@ -37,17 +37,16 @@ enum ConstraintType {
 };
 
 struct CharacterRigidBody {
-    CharacterRigidBody(const btVector3& boxHalfBounds, int linkIndex) :
-        _boxHalfBounds(boxHalfBounds),
-        _bodyType(BodyType::Box),
-        _linkIndex(linkIndex) { };
+    CharacterRigidBody() :
+        _bodyType(BodyType::Box) { };
+    int _parentIndex;
     BodyType _bodyType;
     ConstraintType _constraintType;
     int _linkIndex;
     std::vector<btVector3> _spheresPositions;
     std::vector<btScalar> _spheresRadius;
     btVector3 _boxHalfBounds;
-    btVector3 _defaultTranslation;
+    btVector3 _defaultPosition;
     btQuaternion _defaultRotation;
     btVector3 _hingeJointAxis;
     btMultiBodyLinkCollider* _body { nullptr };
@@ -61,11 +60,12 @@ public:
     void removeAvatarMultiBody();
     void updateAvatarMultiBody();
     void setupMultiBody();
-
     void setDynamicsWorld(btMultiBodyDynamicsWorld* world);
 
 private:
     void addAvatarMultiBodyColliders();
+    void setFlags(int32_t group, int32_t mask) { _group = group; _mask = mask; }
+    CharacterRigidBody getJointConfiguration(const glm::vec3& translation, const glm::quat& rotation, float startRadius, float endRadius, int parentIndex, bool collidable = true);
     btMultiBodyDynamicsWorld* _world { nullptr };
     btMultiBody* _avatarMultiBody { nullptr };
     bool _multiUpdated { false };
@@ -77,6 +77,7 @@ private:
     bool _spherical { true };				//set it ot false -to use 1DoF hinges instead of 3DoF sphericals		
     bool _multibodyOnly { false };
     bool _canSleep { false };
+    bool _collidable { true };
     bool _selfCollide { true };
     bool _multibodyConstraint { false };
     std::vector<CharacterRigidBody> _rigidBodies;

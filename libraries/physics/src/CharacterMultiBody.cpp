@@ -26,8 +26,7 @@ void CharacterMultiBody::setupMultiBody() {
     btVector3 baseInertiaDiag(0.f, 0.f, 0.f);
     float baseMass = 1.f;
 
-    if (baseMass)
-    {
+    if (baseMass) {
         btCollisionShape *pTempBox = new btBoxShape(baseBody._boxHalfBounds);
         pTempBox->calculateLocalInertia(baseMass, baseInertiaDiag);
         delete pTempBox;
@@ -44,28 +43,18 @@ void CharacterMultiBody::setupMultiBody() {
         _avatarMultiBody = new btMultiBody(_numLinks, baseMass, baseInertiaDiag, fixedBase, canSleep);
     }
 
-    btQuaternion baseOriQuat(0.f, 0.f, 0.f, 1.f);
-    btVector3 basePosition = btVector3(-0.4f, 3.f, 0.f);
-    _avatarMultiBody->setBasePos(basePosition);
-    _avatarMultiBody->setWorldToBaseRot(baseOriQuat);
-    btVector3 vel(0, 0, 0);
-    //	pMultiBody->setBaseVel(vel);
+    _avatarMultiBody->setBasePos(baseBody._defaultPosition);
+    _avatarMultiBody->setWorldToBaseRot(baseBody._defaultRotation);
 
     //init the links	
     btVector3 hingeJointAxis(1, 0, 0);
-    float linkMass = 1.f;
+    float linkMass = 0.1f;
     btVector3 linkInertiaDiag(0.f, 0.f, 0.f);
 
     btCollisionShape *pTempBox = new btBoxShape(_rigidBodies[1]._boxHalfBounds);
     pTempBox->calculateLocalInertia(linkMass, linkInertiaDiag);
     delete pTempBox;
 
-    //y-axis assumed up
-    btVector3 parentComToCurrentCom(0, -_rigidBodies[1]._boxHalfBounds[1] * 2.f, 0);						//par body's COM to cur body's COM offset	
-    btVector3 currentPivotToCurrentCom(0, -_rigidBodies[1]._boxHalfBounds[1], 0);							//cur body's COM to cur body's PIV offset
-    btVector3 parentComToCurrentPivot = parentComToCurrentCom - currentPivotToCurrentCom;	//par body's COM to cur body's PIV offset
-
-                                                                                            //////
     btScalar q0 = 0.f * SIMD_PI / 180.f;
     btQuaternion quat0(btVector3(0, 1, 0).normalized(), q0);
     quat0.normalize();
@@ -74,18 +63,25 @@ void CharacterMultiBody::setupMultiBody() {
     for (int i = 0; i < _numLinks; ++i)
     {
         CharacterRigidBody linkBody = _rigidBodies[i + 1];
+        CharacterRigidBody prevLinkBody = _rigidBodies[i];
+        
+        btVector3 parentComToCurrentCom(0, -(prevLinkBody._boxHalfBounds[1] + linkBody._boxHalfBounds[1]), 0);   //par body's COM to cur body's COM offset	
+        btVector3 currentPivotToCurrentCom(0, -linkBody._boxHalfBounds[1], 0);							            //cur body's COM to cur body's PIV offset
+        btVector3 parentComToCurrentPivot = parentComToCurrentCom - currentPivotToCurrentCom;	                    //par body's COM to cur body's PIV offset
+
         switch (linkBody._constraintType) {
         case ConstraintType::Planar:
-            _avatarMultiBody->setupPlanar(i, linkMass, linkInertiaDiag, i - 1, linkBody._defaultRotation, linkBody._hingeJointAxis, parentComToCurrentPivot, true);
+            _avatarMultiBody->setupPlanar(i, linkMass, linkInertiaDiag, linkBody._parentIndex, linkBody._defaultRotation, linkBody._hingeJointAxis, parentComToCurrentPivot, true);
             break;
         case ConstraintType::Prismatic:
-            _avatarMultiBody->setupPrismatic(i, linkMass, linkInertiaDiag, i - 1, linkBody._defaultRotation, linkBody._hingeJointAxis, parentComToCurrentPivot, currentPivotToCurrentCom, true);
+            _avatarMultiBody->setupPrismatic(i, linkMass, linkInertiaDiag, linkBody._parentIndex, linkBody._defaultRotation, linkBody._hingeJointAxis, parentComToCurrentPivot, currentPivotToCurrentCom, true);
             break;
         case ConstraintType::Revolute:
-            _avatarMultiBody->setupRevolute(i, linkMass, linkInertiaDiag, i - 1, linkBody._defaultRotation, linkBody._hingeJointAxis, parentComToCurrentPivot, currentPivotToCurrentCom, true);
+            _avatarMultiBody->setupRevolute(i, linkMass, linkInertiaDiag, linkBody._parentIndex, linkBody._defaultRotation, linkBody._hingeJointAxis, parentComToCurrentPivot, currentPivotToCurrentCom, true);
             break;
         case ConstraintType::Spherical:
-            _avatarMultiBody->setupSpherical(i, linkMass, linkInertiaDiag, i - 1, linkBody._defaultRotation, parentComToCurrentPivot, currentPivotToCurrentCom, true);
+            _avatarMultiBody->setupSpherical(i, linkMass, linkInertiaDiag, linkBody._parentIndex, linkBody._defaultRotation, parentComToCurrentPivot, currentPivotToCurrentCom, true);
+            break;
         }
     }
 
@@ -98,9 +94,7 @@ void CharacterMultiBody::setupMultiBody() {
     {
         _avatarMultiBody->setLinearDamping(0.f);
         _avatarMultiBody->setAngularDamping(0.f);
-    }
-    else
-    {
+    } else {
         _avatarMultiBody->setLinearDamping(0.1f);
         _avatarMultiBody->setAngularDamping(0.9f);
     }
@@ -120,6 +114,25 @@ void CharacterMultiBody::setupMultiBody() {
     }
 }
 
+CharacterRigidBody CharacterMultiBody::getJointConfiguration(const glm::vec3& translation, const glm::quat& rotation, float startRadius, float endRadius, int parentIndex, bool collidable) {
+    float maxRadius = std::max(startRadius, endRadius);
+    float distance = glm::length(translation);
+    btVector3 halfExtend(maxRadius, 0.5f * distance, maxRadius);
+    std::vector<btVector3> positions = { btVector3(0.0f, 0.5f * distance, 0.0f), btVector3(0.0f, -0.5f * distance, 0.0f) };
+    std::vector<float> radius = { startRadius, endRadius };
+    CharacterRigidBody body = CharacterRigidBody();
+    body._parentIndex = parentIndex;
+    body._boxHalfBounds = halfExtend;
+    body._defaultPosition = glmToBullet(translation);
+    body._defaultRotation = glmToBullet(rotation);
+    body._bodyType = BodyType::Sphere;
+    body._spheresPositions = positions;
+    body._spheresRadius = radius;
+    body._constraintType = ConstraintType::Spherical;
+    setFlags(collidable ? BULLET_COLLISION_GROUP_DYNAMIC : BULLET_COLLISION_GROUP_COLLISIONLESS, collidable ? BULLET_COLLISION_MASK_DYNAMIC : BULLET_COLLISION_MASK_COLLISIONLESS);
+    return body;
+}
+
 void CharacterMultiBody::createAvatarMultiBody() {
 
     if (_avatarMultiBody) {
@@ -127,31 +140,20 @@ void CharacterMultiBody::createAvatarMultiBody() {
         cleanAvatarMultiBody();
     }
     
-    _numLinks = 5;
+    CharacterRigidBody baseBody = getJointConfiguration(glm::vec3(0.0f, 0.1f, 0.0f), Quaternions::IDENTITY, 0.05f, 0.03f, -1, false);
 
-    btVector3 linkHalfExtents(0.05f, 0.37f, 0.1f);
-    btVector3 baseHalfExtents(0.05f, 0.37f, 0.1f);
+    CharacterRigidBody linkBody01 = getJointConfiguration(glm::vec3(0.0f, 0.6f, 0.0f), Quaternions::IDENTITY, 0.03f, 0.05f, -1);
+    CharacterRigidBody linkBody02 = getJointConfiguration(glm::vec3(0.0f, 0.3f, 0.0f), Quaternions::IDENTITY, 0.05f, 0.05f, 0);
+    CharacterRigidBody linkBody03 = getJointConfiguration(glm::vec3(0.0f, 0.6f, 0.0f), Quaternions::IDENTITY, 0.05f, 0.08f, 1);
+    CharacterRigidBody linkBody04 = getJointConfiguration(glm::vec3(0.0f, 0.3f, 0.0f), Quaternions::IDENTITY, 0.08f, 0.05f, 2);
+    CharacterRigidBody linkBody05 = getJointConfiguration(glm::vec3(0.0f, 0.2f, 0.0f), Quaternions::IDENTITY, 0.05f, 0.05f, 3);
 
-    const std::vector<float> radious = { 0.15f, 0.05f, 0.1f, 0.05f};
-    const std::vector<btVector3> positions = { btVector3(0.0f, 0.3f, 0.0f), btVector3(0.0f, 0.0f, 0.5f) , btVector3(0.0f, -0.3f, 0.0f), btVector3(0.0f, 0.0f, -0.5f) };
-
-    CharacterRigidBody baseBody = CharacterRigidBody(baseHalfExtents, -1);
-    baseBody._defaultRotation = btQuaternion(0.f, 0.f, 0.f, 1.f);
-    baseBody._bodyType = BodyType::Sphere;
-    baseBody._spheresPositions = positions;
-    baseBody._spheresRadius = radious;
-    baseBody._constraintType = ConstraintType::Spherical;
     _rigidBodies.push_back(baseBody);
-
-    for (int i = 0; i < _numLinks; i++) {
-        CharacterRigidBody linkBody = CharacterRigidBody(linkHalfExtents, i);
-        linkBody._defaultRotation = btQuaternion(0.f, 0.f, 0.f, 1.f);
-        linkBody._bodyType = BodyType::Sphere;
-        linkBody._spheresPositions = positions;
-        linkBody._spheresRadius = radious;
-        linkBody._constraintType = ConstraintType::Spherical;
-        _rigidBodies.push_back(linkBody);
-    }
+    _rigidBodies.push_back(linkBody01);
+    _rigidBodies.push_back(linkBody02);
+    _rigidBodies.push_back(linkBody03);
+    _rigidBodies.push_back(linkBody04);
+    _rigidBodies.push_back(linkBody05);
 
     setupMultiBody();
     addAvatarMultiBodyColliders();
@@ -183,6 +185,8 @@ void CharacterMultiBody::addAvatarMultiBodyColliders()
         baseCollider = new btMultiBodyLinkCollider(_avatarMultiBody, -1);
         baseCollider->setCollisionShape(mshape);
     }
+    
+    //baseCollider->setCollisionFlags(BULLET_COLLISION_GROUP_KINEMATIC);
 
     btTransform tr;
     tr.setIdentity();
@@ -222,7 +226,7 @@ void CharacterMultiBody::addAvatarMultiBodyColliders()
             linkCollider = new btMultiBodyLinkCollider(_avatarMultiBody, i);
             linkCollider->setCollisionShape(mshape);
         }
-
+        //linkCollider->setCollisionFlags(BULLET_COLLISION_GROUP_KINEMATIC);
         btTransform tr;
         tr.setIdentity();
         tr.setOrigin(posr);
@@ -230,7 +234,6 @@ void CharacterMultiBody::addAvatarMultiBodyColliders()
         linkCollider->setWorldTransform(tr);
         linkCollider->setFriction(friction);
         _rigidBodies[i + 1]._body = linkCollider;
-
         _avatarMultiBody->getLink(i).m_collider = linkCollider;
     }
 }
@@ -276,7 +279,7 @@ void CharacterMultiBody::updateAvatarMultiBody() {
 }
 
 void CharacterMultiBody::setAvatarMultiBodyPosition(float deltaTime, const glm::vec3& newPosition) {
-    if (_avatarMultiBody && !_setted) {
+    if (_avatarMultiBody) {// && !_setted) {
         auto transform = _avatarMultiBody->getBaseWorldTransform();
         transform.setOrigin(glmToBullet(newPosition));
         _avatarMultiBody->setBaseWorldTransform(transform);
