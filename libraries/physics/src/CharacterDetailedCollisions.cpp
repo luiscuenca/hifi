@@ -335,7 +335,6 @@ btMultiBody* CharacterDetailedCollisions::createFeatherstoneMultiBody(int numLin
 void CharacterDetailedCollisions::createAvatarMultiBody() {
 
     if (_avatarMultiBody) {
-        removeAvatarMultiBody();
         cleanAvatarMultiBody();
     }
     bool damping = true;

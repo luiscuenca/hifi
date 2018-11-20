@@ -575,7 +575,13 @@ void MyAvatar::update(float deltaTime) {
     emit energyChanged(currentEnergy);
 
     updateEyeContactTarget(deltaTime);
-    _characterController.setAvatarMultiBodyPosition(getWorldPosition());
+    _characterController.setAvatarMultiBodyPosition(deltaTime, getWorldPosition());
+    QVector<glm::vec3> jointPositions;
+    auto names = getJointNames();
+    for (auto name : names) {
+        jointPositions.push_back(getJointPosition(name));
+    }
+    _characterController.setAvatarMultiBodyForces(deltaTime, jointPositions);
 }
 
 void MyAvatar::updateEyeContactTarget(float deltaTime) {

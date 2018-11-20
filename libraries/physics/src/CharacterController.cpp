@@ -428,7 +428,6 @@ void CharacterController::recomputeFlying() {
 }
 
 void CharacterController::cleanPhysics() {
-    _multiBody.removeAvatarMultiBody();
     _multiBody.cleanAvatarMultiBody();
 }
 

@@ -19,6 +19,7 @@
 #include <BulletDynamics/Featherstone/btMultiBodyLinkCollider.h>
 #include <BulletDynamics/Featherstone/btMultiBodyConstraintSolver.h>
 #include <BulletDynamics/Featherstone/btMultiBodyDynamicsWorld.h>
+#include <BulletDynamics/Featherstone/btMultiBodyPoint2Point.h>
 #include <GLMHelpers.h>
 #include <ScriptValueUtils.h>
 #include "BulletUtil.h"
@@ -30,7 +31,8 @@ enum BodyType {
 };
 
 enum ConstraintType {
-    Spherical = 0,
+    Fixed = 0,
+    Spherical,
     Planar,
     Prismatic,
     Revolute
@@ -54,18 +56,21 @@ struct CharacterRigidBody {
 
 class CharacterMultiBody {
 public:
-    void createAvatarMultiBody();
+    void createAvatarMultiBody(const QVariantList& skeleton);
     void setAvatarMultiBodyPosition(float deltaTime, const glm::vec3& newPosition);
     void cleanAvatarMultiBody();
     void removeAvatarMultiBody();
-    void updateAvatarMultiBody();
-    void setupMultiBody();
     void setDynamicsWorld(btMultiBodyDynamicsWorld* world);
+    void setAvatarMultiBodyForces(float deltaTime, const QVector<glm::vec3>& jointPositions);
 
 private:
+    void updateAvatarMultiBody();
+    void setupMultiBody();
     void addAvatarMultiBodyColliders();
+    void updateConstraint(int linkIndex, const glm::vec3& position);
+    void destroyConstraint(int linkIndex);
     void setFlags(int32_t group, int32_t mask) { _group = group; _mask = mask; }
-    CharacterRigidBody getJointConfiguration(const glm::vec3& translation, const glm::quat& rotation, float startRadius, float endRadius, int parentIndex, bool collidable = true);
+    CharacterRigidBody getJointConfiguration(const glm::vec3& translation, const glm::quat& rotation, float startRadius, float endRadius, int parentIndex, float offset = 0.0f);
     btMultiBodyDynamicsWorld* _world { nullptr };
     btMultiBody* _avatarMultiBody { nullptr };
     bool _multiUpdated { false };
@@ -82,6 +87,10 @@ private:
     bool _multibodyConstraint { false };
     std::vector<CharacterRigidBody> _rigidBodies;
     bool _setted { false };
+    QVariantList _skeleton;
+    QVector<int> _newIndexes;
+    QVector<btMultiBodyPoint2Point*> _constraints;
+    int _allowUpdateIndex { 0 };
 };
 
 #endif // hifi_CharacterMultiBody_h

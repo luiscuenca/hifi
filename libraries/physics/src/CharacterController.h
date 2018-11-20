@@ -57,7 +57,8 @@ public:
     float getGravity();
     void recomputeFlying();
 
-    void setAvatarMultiBodyPosition(const glm::vec3& position) { _multiBody.setAvatarMultiBodyPosition(0.0f, position); };
+    void setAvatarMultiBodyPosition(float deltaTime, const glm::vec3& position) { _multiBody.setAvatarMultiBodyPosition(deltaTime, position); };
+    void setAvatarMultiBodyForces(float deltaTime, const QVector<glm::vec3>& positions) { _multiBody.setAvatarMultiBodyForces(deltaTime, positions); };
 
     void cleanPhysics();
 

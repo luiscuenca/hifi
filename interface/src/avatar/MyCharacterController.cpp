@@ -60,7 +60,7 @@ void MyCharacterController::updateShapeIfNecessary() {
                 shape = computeShape();
                 _rigidBody->setCollisionShape(shape);
             }
-            _multiBody.createAvatarMultiBody();
+            _multiBody.createAvatarMultiBody(_avatar->getSkeletonData());
             updateMassProperties();
 
             _rigidBody->setSleepingThresholds(0.0f, 0.0f);

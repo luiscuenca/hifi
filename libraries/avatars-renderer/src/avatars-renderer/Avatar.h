@@ -307,6 +307,7 @@ public:
      * @property {number} parentIndex - Index of this joint's parent (-1 if no parent).
      */
     Q_INVOKABLE QList<QVariant> getSkeleton();
+    QList<QVariant> getSkeletonData();
 
     // NOT thread safe, must be called on main thread.
     glm::vec3 getUncachedLeftPalmPosition() const;

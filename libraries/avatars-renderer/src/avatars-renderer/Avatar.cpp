@@ -1772,6 +1772,29 @@ QList<QVariant> Avatar::getSkeleton() {
     return QList<QVariant>();
 }
 
+QList<QVariant> Avatar::getSkeletonData() {
+    QList<QVariant> skeleton = getSkeleton();
+    if (skeleton.size() > 0) {
+        QList<QVariant> list;
+        list.reserve(skeleton.size());
+        for (auto &var : skeleton) {
+            auto object = var.toJsonObject();
+            QString name = object["name"].toString();
+            int index = object["index"].toInt();
+            int parentIndex = object["parentIndex"].toInt();
+            QVariantMap newObj;
+            newObj["index"] = index;
+            newObj["parentIndex"] = parentIndex;
+            newObj["name"] = name;
+            newObj["jointRotation"] = quatToVariant(getJointRotation(index));
+            newObj["jointTranslation"] = vec3toVariant(getJointTranslation(index));
+            list.push_back(newObj);
+        }
+        return list;
+    }
+    return skeleton;
+}
+
 void Avatar::addToScene(AvatarSharedPointer myHandle, const render::ScenePointer& scene) {
     if (scene) {
         auto nodelist = DependencyManager::get<NodeList>();
