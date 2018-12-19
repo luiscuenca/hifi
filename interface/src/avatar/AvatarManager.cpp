@@ -407,10 +407,16 @@ void AvatarManager::buildPhysicsTransaction(PhysicsEngine::Transaction& transact
             if (isInPhysics) {
                 transaction.objectsToRemove.push_back(avatar->_motionState);
                 avatar->_motionState = nullptr;
+                for (auto& motionState : avatar->_detailedMotionStates) {
+                    transaction.objectsToRemove.push_back(motionState);
+                    motionState = nullptr;
+                }
+                avatar->_detailedMotionStates.clear();
             } else {
                 ShapeInfo shapeInfo;
                 avatar->computeShapeInfo(shapeInfo);
                 btCollisionShape* shape = const_cast<btCollisionShape*>(ObjectMotionState::getShapeManager()->getShape(shapeInfo));
+                bool shapeFailed = false;
                 if (shape) {
                     AvatarMotionState* motionState = new AvatarMotionState(avatar, shape);
                     motionState->setMass(avatar->computeMass());
@@ -418,10 +424,31 @@ void AvatarManager::buildPhysicsTransaction(PhysicsEngine::Transaction& transact
                     transaction.objectsToAdd.push_back(motionState);
                 } else {
                     failedShapeBuilds.insert(avatar);
+                    shapeFailed = true;
+                }
+                assert(avatar->_detailedMotionStates.size() == 0);
+                for (auto& multiSphere : avatar->_multiSphereShapes) {
+                    auto spheresData = multiSphere.getSpheresData();
+                    std::vector<btVector3> positions;
+                    std::vector<btScalar> radiuses;
+                    for (auto data : spheresData) {
+                        positions.push_back(glmToBullet(data._position));
+                        radiuses.push_back(data._radius);
+                    }
+                    btMultiSphereShape* multiSphere = new btMultiSphereShape(positions.data(), radiuses.data(), (int)positions.size());
+                    if (multiSphere) {
+                        avatar->_detailedMotionStates.push_back(new DetailedMotionState(avatar, multiSphere));
+                    } else if (!shapeFailed){
+                        failedShapeBuilds.insert(avatar);
+                        shapeFailed = true;
+                    }
                 }
             }
         } else if (isInPhysics) {
             transaction.objectsToChange.push_back(avatar->_motionState);
+            for (auto& motionState : avatar->_detailedMotionStates) {
+                transaction.objectsToChange.push_back(motionState);
+            }
         }
     }
     _avatarsToChangeInPhysics.swap(failedShapeBuilds);
@@ -519,7 +546,7 @@ void AvatarManager::deleteAllAvatars() {
         avatar->die();
         if (avatar != _myAvatar) {
             auto otherAvatar = std::static_pointer_cast<OtherAvatar>(avatar);
-            assert(!otherAvatar->_motionState);
+            assert(!otherAvatar->_motionState && otherAvatar->_detailedMotionStates.size() == 0);
         }
     }
 }

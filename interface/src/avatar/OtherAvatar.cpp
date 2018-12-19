@@ -10,6 +10,7 @@
 #include "Application.h"
 
 #include "AvatarMotionState.h"
+#include "DetailedMotionState.h"
 
 static glm::u8vec3 getLoadingOrbColor(Avatar::LoadingStatus loadingStatus) {
 

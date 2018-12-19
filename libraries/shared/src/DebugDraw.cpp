@@ -31,6 +31,16 @@ void DebugDraw::drawRay(const glm::vec3& start, const glm::vec3& end, const glm:
     _rays.push_back(Ray(start, end, color));
 }
 
+void DebugDraw::drawRays(const std::vector<std::pair<glm::vec3, glm::vec3>>& lines,
+    const glm::vec4& color, const glm::vec3& translation, const glm::quat& rotation) {
+    Lock lock(_mapMutex);
+    for (std::pair<glm::vec3, glm::vec3> line : lines) {
+        auto point1 = translation + rotation * line.first;
+        auto point2 = translation + rotation * line.second;
+        _rays.push_back(Ray(point1, point2, color));
+    }
+}
+
 void DebugDraw::addMarker(const QString& key, const glm::quat& rotation, const glm::vec3& position, const glm::vec4& color) {
     Lock lock(_mapMutex);
     _markers[key] = MarkerInfo(rotation, position, color);

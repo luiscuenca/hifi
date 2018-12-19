@@ -2580,16 +2580,15 @@ void MyAvatar::postUpdate(float deltaTime, const render::ScenePointer& scene) {
 
         if (_skeletonModel && _skeletonModel->isLoaded()) {
             const Rig& rig = _skeletonModel->getRig();
-            const HFMModel& hfmModel = _skeletonModel->getHFMModel();
-            for (int i = 0; i < rig.getJointStateCount(); i++) {
-                AnimPose jointPose;
-                rig.getAbsoluteJointPoseInRigFrame(i, jointPose);
-                const HFMJointShapeInfo& shapeInfo = hfmModel.joints[i].shapeInfo;
-                const AnimPose pose = rigToWorldPose * jointPose;
-                for (size_t j = 0; j < shapeInfo.debugLines.size() / 2; j++) {
-                    glm::vec3 pointA = pose.xformPoint(shapeInfo.debugLines[2 * j]);
-                    glm::vec3 pointB = pose.xformPoint(shapeInfo.debugLines[2 * j + 1]);
-                    DebugDraw::getInstance().drawRay(pointA, pointB, DEBUG_COLORS[i % NUM_DEBUG_COLORS]);
+            int count = rig.getJointStateCount();
+            if (_multiSphereShapes.size() == count) {
+                for (int i = 0; i < count; i++) {
+                    AnimPose jointPose;
+                    rig.getAbsoluteJointPoseInRigFrame(i, jointPose);
+                    const AnimPose pose = rigToWorldPose * jointPose;
+                    auto color = DEBUG_COLORS[i % NUM_DEBUG_COLORS];
+                    auto& debugLines = _multiSphereShapes[i].getDebugLines();
+                    DebugDraw::getInstance().drawRays(debugLines, color, pose.trans(), pose.rot());
                 }
             }
         }
