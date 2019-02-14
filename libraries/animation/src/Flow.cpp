@@ -11,6 +11,7 @@
 #include "Flow.h"
 #include "Rig.h"
 #include "AnimSkeleton.h"
+#include "AnimContext.h"
 
 const std::map<QString, FlowPhysicsSettings> PRESET_FLOW_DATA = { { "hair", FlowPhysicsSettings() },
 { "skirt", FlowPhysicsSettings(true, 1.0f, DEFAULT_GRAVITY, 0.65f, 0.8f, 0.45f, 0.01f) },
@@ -615,11 +616,11 @@ void Flow::setTransform(float scale, const glm::vec3& position, const glm::quat&
     _active = true;
 }
 
-void Flow::update(float deltaTime) {
-    if (_initialized && _active) {
+void Flow::update(float deltaTime, const AnimContext& context) {
+    if (_initialized) {
         QElapsedTimer _timer;
         _timer.start();
-        updateJoints();
+        updateJoints(context);
         for (size_t i = 0; i < _jointThreads.size(); i++) {
             size_t index = _invertThreadLoop ? _jointThreads.size() - 1 - i : i;
             auto &thread = _jointThreads[index];
@@ -672,7 +673,10 @@ bool Flow::updateRootFramePositions(size_t threadIndex) {
     return true;
 }
 
-void Flow::updateJoints() {
+void Flow::updateJoints(const AnimContext& context) {
+    AnimPose rigToWorld = AnimPose(context.getRigToWorldMatrix());
+    setTransform(rigToWorld.scale().x, rigToWorld.trans(), rigToWorld.rot());
+
     for (auto &jointData : _flowJointData) {
         int jointIndex = jointData.first;
         glm::vec3 jointPosition, parentPosition, jointTranslation;

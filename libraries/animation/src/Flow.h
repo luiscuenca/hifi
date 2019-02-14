@@ -21,6 +21,7 @@
 
 class Rig;
 class AnimSkeleton;
+class AnimContext;
 
 const bool SHOW_AVATAR = true;
 const bool SHOW_DEBUG_SHAPES = false;
@@ -278,7 +279,7 @@ class Flow {
 public:
     Flow(Rig* rig) { _rig = rig; };
     void calculateConstraints();
-    void update(float deltaTime);
+    void update(float deltaTime, const AnimContext& context);
     void setTransform(float scale, const glm::vec3& position, const glm::quat& rotation);
     const std::map<int, FlowJoint>& getJoints() const { return _flowJointData; }
     const std::vector<FlowThread>& getThreads() const { return _jointThreads; }
@@ -287,7 +288,7 @@ public:
 private:
     void setJoints();
     void cleanUp();
-    void updateJoints();
+    void updateJoints(const AnimContext& context);
     bool updateRootFramePositions(size_t threadIndex);
     bool worldToJointPoint(const glm::vec3& position, const int jointIndex, glm::vec3& jointSpacePosition) const;
     Rig* _rig;

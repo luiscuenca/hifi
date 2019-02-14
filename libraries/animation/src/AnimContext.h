@@ -29,7 +29,9 @@ enum class AnimNodeType {
     DefaultPose,
     TwoBoneIK,
     PoleVectorConstraint,
+    FlowBones,
     NumTypes
+    
 };
 
 class AnimContext {
