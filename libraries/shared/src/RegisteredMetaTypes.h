@@ -493,7 +493,7 @@ public:
     std::shared_ptr<ShapeInfo> shapeInfo = std::make_shared<ShapeInfo>();
     Transform transform;
     float threshold { 0.0f };
-    uint16_t collisionGroup { USER_COLLISION_GROUP_MY_AVATAR };
+    uint16_t collisionGroup { USER_COLLISION_GROUP_AVATARS };
 };
 
 namespace std {
