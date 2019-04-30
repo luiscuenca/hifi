@@ -113,6 +113,10 @@ void OtherAvatar::updateSpaceProxy(workload::Transaction& transaction) const {
 }
 
 int OtherAvatar::parseDataFromBuffer(const QByteArray& buffer) {
+    _avatarPacketIsNew = true;
+    _lastAvatarPacket.clear();
+    _lastAvatarPacket.resize(buffer.size());
+    memcpy(_lastAvatarPacket.data(), buffer.data(), buffer.size());
     int32_t bytesRead = Avatar::parseDataFromBuffer(buffer);
     for (size_t i = 0; i < _detailedMotionStates.size(); i++) {
         _detailedMotionStates[i]->forceActive();
@@ -280,7 +284,7 @@ void OtherAvatar::createDetailedMotionStates(const std::shared_ptr<OtherAvatar>&
 
 void OtherAvatar::simulate(float deltaTime, bool inView) {
     PROFILE_RANGE(simulation, "simulate");
-
+    _avatarPacketIsNew = false;
     _globalPosition = _transit.isActive() ? _transit.getCurrentPosition() : _serverPosition;
     if (!hasParent()) {
         setLocalPosition(_globalPosition);
@@ -356,6 +360,15 @@ void OtherAvatar::simulate(float deltaTime, bool inView) {
         PROFILE_RANGE(simulation, "grabs");
         applyGrabChanges();
     }
+}
+
+bool OtherAvatar::getLastAvatarPacket(QByteArray& lastPacket) {
+    if (_avatarPacketIsNew) {
+        lastPacket.clear();
+        lastPacket.resize(_lastAvatarPacket.size());
+        memcpy(lastPacket.data(), _lastAvatarPacket.data(), _lastAvatarPacket.size());
+    }
+    return _avatarPacketIsNew;
 }
 
 void OtherAvatar::handleChangedAvatarEntityData() {

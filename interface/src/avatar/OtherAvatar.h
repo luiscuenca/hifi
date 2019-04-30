@@ -61,7 +61,9 @@ public:
     void computeShapeLOD();
 
     void updateCollisionGroup(bool myAvatarCollide);
-    bool getCollideWithOtherAvatars() const { return _collideWithOtherAvatars; } 
+    bool getCollideWithOtherAvatars() const { return _collideWithOtherAvatars; }
+
+    bool getLastAvatarPacket(QByteArray& lastPacket);
 
     void setCollisionWithOtherAvatarsFlags() override;
 
@@ -93,6 +95,8 @@ protected:
     uint8_t _workloadRegion { workload::Region::INVALID };
     BodyLOD _bodyLOD { BodyLOD::Sphere };
     bool _needsReinsertion { false };
+    bool _avatarPacketIsNew { false };
+    QByteArray _lastAvatarPacket;
 };
 
 using OtherAvatarPointer = std::shared_ptr<OtherAvatar>;

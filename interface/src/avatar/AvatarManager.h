@@ -32,7 +32,7 @@
 #include "DetailedMotionState.h"
 #include "MyAvatar.h"
 #include "OtherAvatar.h"
-
+#include "AvatarCapture.h"
 
 using SortedAvatar = std::pair<float, std::shared_ptr<Avatar>>;
 
@@ -245,6 +245,11 @@ public:
      */
     Q_INVOKABLE QVariantMap getPalData(const QStringList& specificAvatarIdentifiers = QStringList());
 
+    Q_INVOKABLE bool captureAvatar(const QUuid& avatarID);
+    Q_INVOKABLE int getRecordingTimeLeft();
+    Q_INVOKABLE bool playbackRecording(const QString& fileName);
+    Q_INVOKABLE QVariantMap getCaptures();
+
     float getMyAvatarSendRate() const { return _myAvatarSendRate.rate(); }
 
     void queuePhysicsChange(const OtherAvatarPointer& avatar);
@@ -253,6 +258,9 @@ public:
     void removeDeadAvatarEntities(const SetOfEntities& deadEntities);
 
     void accumulateGrabPositions(std::map<QUuid, GrabLocationAccumulator>& grabAccumulators);
+
+signals:
+    void recordFinish(const QVariantMap& res);
 
 public slots:
     /**jsdoc
@@ -299,6 +307,7 @@ private:
     workload::SpacePointer _space;
 
     AvatarTransit::TransitConfig  _transitConfig;
+    AvatarCapture _avatarCapture;
 };
 
 #endif // hifi_AvatarManager_h

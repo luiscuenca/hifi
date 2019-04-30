@@ -39,6 +39,7 @@
 #include <UUID.h>
 #include <shared/ConicalViewFrustum.h>
 #include <ui/AvatarInputs.h>
+#include <SoundCache.h>
 
 #include "Application.h"
 #include "InterfaceLogging.h"
@@ -46,6 +47,8 @@
 #include "MyAvatar.h"
 #include "DebugDraw.h"
 #include "SceneScriptingInterface.h"
+#include "RecordingScriptingInterface.h"
+#include "AudioClient.h"
 
 // 50 times per second - target is 45hz, but this helps account for any small deviations
 // in the update loop - this also results in ~30hz when in desktop mode which is essentially
@@ -74,7 +77,9 @@ AvatarManager::AvatarManager(QObject* parent) :
             }
         }
     });
-
+    connect(&_avatarCapture, &AvatarCapture::recordFinish, this, [&](const QVariantMap& result) {
+        emit recordFinish(result);
+    });
     _transitConfig._totalFrames = AVATAR_TRANSIT_FRAME_COUNT;
     _transitConfig._minTriggerDistance = AVATAR_TRANSIT_MIN_TRIGGER_DISTANCE;
     _transitConfig._maxTriggerDistance = AVATAR_TRANSIT_MAX_TRIGGER_DISTANCE;
@@ -230,6 +235,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
     };
 
     auto avatarMap = getHashCopy();
+    _avatarCapture.includeAvatarInHash(avatarMap);
 
     const auto& views = qApp->getConicalViews();
     // Prepare 2 queues for heros and for crowd avatars
@@ -330,6 +336,15 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
                     avatar->_transit.reset();
                     avatar->setIsNewAvatar(false);
                 }
+                auto captureState = _avatarCapture.updateCaptureState(avatar, now, deltaTime);
+                if (captureState == AvatarCapture::CaptureState::DonePlaying) {
+                    // handleRemovedAvatar(avatar, KillAvatarReason::AvatarDisconnected);
+                    const render::ScenePointer& scene = qApp->getMain3DScene();
+                    render::Transaction transaction;
+                    avatar->removeFromScene(avatar, scene, transaction);
+                    scene->enqueueTransaction(transaction);
+                    _avatarCapture.setActor(AvatarSharedPointer(nullptr));
+                }
                 avatar->simulate(deltaTime, inView);
                 if (avatar->getSkeletonModel()->isLoaded() && avatar->getWorkloadRegion() == workload::Region::R1) {
                     _myAvatar->addAvatarHandsToFlow(avatar);
@@ -386,6 +401,7 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
 
 void AvatarManager::postUpdate(float deltaTime, const render::ScenePointer& scene) {
     auto hashCopy = getHashCopy();
+    _avatarCapture.includeAvatarInHash(hashCopy);
     AvatarHash::iterator avatarIterator = hashCopy.begin();
     for (avatarIterator = hashCopy.begin(); avatarIterator != hashCopy.end(); avatarIterator++) {
         auto avatar = std::static_pointer_cast<Avatar>(avatarIterator.value());
@@ -405,6 +421,15 @@ AvatarSharedPointer AvatarManager::newSharedAvatar(const QUuid& sessionUUID) {
 
 void AvatarManager::queuePhysicsChange(const OtherAvatarPointer& avatar) {
     _avatarsToChangeInPhysics.insert(avatar);
+}
+
+bool AvatarManager::playbackRecording(const QString& fileName) {
+    if (_avatarCapture.canPlay(fileName)) {
+        _avatarCapture.setActor(newSharedAvatar(QUuid::createUuid()));
+        _avatarCapture.play(_myAvatar->getWorldPosition());
+        return true;
+    }
+    return false;
 }
 
 void AvatarManager::buildPhysicsTransaction(PhysicsEngine::Transaction& transaction) {
@@ -641,6 +666,7 @@ void AvatarManager::updateAvatarRenderStatus(bool shouldRenderAvatars) {
     const render::ScenePointer& scene = qApp->getMain3DScene();
     render::Transaction transaction;
     auto avatarHashCopy = getHashCopy();
+    _avatarCapture.includeAvatarInHash(avatarHashCopy);
     if (_shouldRender) {
         for (auto avatarData : avatarHashCopy) {
             auto avatar = std::static_pointer_cast<Avatar>(avatarData);
@@ -1000,4 +1026,28 @@ void AvatarManager::accumulateGrabPositions(std::map<QUuid, GrabLocationAccumula
         avatar->accumulateGrabPositions(grabAccumulators);
         itr++;
     }
+}
+
+QVariantMap  AvatarManager::getCaptures() {
+    QDir dir(_avatarCapture.getDefaultCaptureSaveDirectory());
+    auto captureFiles = dir.entryList(QStringList() << "*.wav" << "*.pkt" << "*.meta", QDir::Filter::Files, QDir::SortFlag::Name);
+    for (int i = 0; i < captureFiles.size(); i++) {
+        auto fileParts = captureFiles[i].split(".");
+        QString captureName = captureFiles[i].section(".", 0, 0);
+
+    }
+    QVariantMap res;
+    res.insert("files", captureFiles);
+    return res;
+}
+
+bool AvatarManager::captureAvatar(const QUuid& avatarID) {
+    if (avatarID != _myAvatar->getSessionUUID()) {
+        return _avatarCapture.captureAvatarByID(avatarID);
+    }
+    return false;
+}
+
+int AvatarManager::getRecordingTimeLeft() {
+    return _avatarCapture.getRecordingTimeLeft();
 }
