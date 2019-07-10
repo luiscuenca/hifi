@@ -41,11 +41,19 @@ BOOL CLauncherApp::InitInstance() {
     LPWSTR* pArgs = CommandLineToArgvW(GetCommandLine(), &iNumOfArgs);
     bool isUninstalling = false;
     bool isRestarting = false;
+    CString overrideInterfaceUrl;
     if (iNumOfArgs > 1) {
         if (CString(pArgs[1]).Compare(_T("--uninstall")) == 0) {
             isUninstalling = true;
         } else if (CString(pArgs[1]).Compare(_T("--restart")) == 0) {
             isRestarting = true;
+        } else {
+            for (int i = 1; i < iNumOfArgs-1; i++) {
+                if (CString(pArgs[i]).Compare(_T("--interfaceURL")) == 0) {
+                    overrideInterfaceUrl = CString(pArgs[i + 1]);
+                    break;
+                }
+            }
         }
     }
     if (!isRestarting) {
@@ -59,7 +67,7 @@ BOOL CLauncherApp::InitInstance() {
     if (isUninstalling) {
         _manager.uninstall();
     } else {
-        _manager.init();
+        _manager.init(overrideInterfaceUrl);
     }   
     if (!_manager.hasFailed() && !_manager.installLauncher()) {
         return FALSE;

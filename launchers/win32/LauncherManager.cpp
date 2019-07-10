@@ -21,21 +21,40 @@ LauncherManager::LauncherManager() {
 LauncherManager::~LauncherManager() {
 }
 
-void LauncherManager::init() {
+void LauncherManager::init(const CString& url) {
     initLog();
     addToLog(_T("Getting most recent build"));
     CString response;
     LauncherUtils::ResponseError error = getMostRecentBuild(_latestApplicationURL, _latestVersion, response);
     if (error == LauncherUtils::ResponseError::NoError) {
-        addToLog(_T("Latest version: ") + _latestVersion);
+        bool overrideInterfaceUrl = !url.IsEmpty();
         CString currentVersion;
-        if (isApplicationInstalled(currentVersion, _domainURL, _contentURL, _loggedIn) && _loggedIn) {
+        bool alreadyInstalled = isApplicationInstalled(currentVersion, _domainURL, _contentURL, _loggedIn) && _loggedIn;
+        bool sameVersion = _latestVersion.Compare(currentVersion) == 0;
+        bool customInstalled = currentVersion.Find(_T(".zip")) > -1;
+        if (overrideInterfaceUrl) {
+            _latestApplicationURL = url;
+            std::string strUrl = LauncherUtils::cStringToStd(url);
+            std::string filename = strUrl.substr(strUrl.find_last_of("/\\") + 1);
+            _latestVersion = CString(filename.c_str());
+            sameVersion = _latestVersion.Compare(currentVersion) == 0;
+            if (alreadyInstalled && !sameVersion) {
+                _loggedIn = false;
+                alreadyInstalled = false;
+            }
+            CString logstr;
+            logstr.Format(_T("Application URL overridden:\n %s\nVersion overridden:\n %s"), _latestApplicationURL, _latestVersion);
+            addToLog(logstr);
+        } else {
+            addToLog(_T("Latest version: ") + _latestVersion);
+        }        
+        if (alreadyInstalled) {
             addToLog(_T("Installed version: ") + currentVersion);
-            if (_latestVersion.Compare(currentVersion) == 0) {
+            if (sameVersion) {
                 addToLog(_T("Already running most recent build. Launching interface.exe"));
                 _shouldLaunch = TRUE;
                 _shouldShutdown = TRUE;
-            } else {
+            } else if (!customInstalled){
                 addToLog(_T("New build found. Updating"));
                 _shouldUpdate = TRUE;
             }

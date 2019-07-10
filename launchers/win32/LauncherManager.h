@@ -57,7 +57,7 @@ public:
     };
     LauncherManager();
     ~LauncherManager();
-    void init();
+    void init(const CString& url = _T(""));
     BOOL initLog();
     BOOL addToLog(const CString& line);
     void closeLog();
@@ -119,6 +119,7 @@ private:
     CString _tokensJSON;
     CString _applicationZipPath;
     CString _contentZipPath;
+    CString _interfaceUrlOverride;
     bool _loggedIn { false };
     bool _hasFailed { false };
     BOOL _shouldUpdate { FALSE };
