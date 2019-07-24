@@ -12,9 +12,11 @@ QString AvatarCapture::getDefaultCaptureSaveDirectory() {
     return directory;
 }
 
-bool AvatarCapture::captureAvatarByID(const QUuid& avatarID) {
+bool AvatarCapture::captureAvatar(const QUuid& avatarID, const QString& displayName) {
     if (!_isRecordingAvatar && _avatarToRecordID.isNull()) {
         _avatarToRecordID = avatarID;
+        _avatarInfo.sessionId = avatarID;
+        _avatarInfo.displayName = displayName;
         return prepareFilesForCapture();
     }
     return false;
@@ -33,12 +35,9 @@ bool AvatarCapture::prepareFilesForCapture(){
     static const auto unixEpoch = std::chrono::system_clock::from_time_t(0);
     auto time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - unixEpoch).count();
     QString directory = getDefaultCaptureSaveDirectory();
-    QString captureName = QString::number(time);
-    if (setMetadata(directory + captureName + ".txt", _avatarToRecordID.toString(), true)) {
-        return false;
-    }
-    _captureSoundFileName = directory + captureName + ".wav";
-    _capturePacketsFileName = directory + captureName + ".pkt";
+    _captureName = QString::number(time);
+    _captureSoundFileName = directory + _captureName + ".wav";
+    _capturePacketsFileName = directory + _captureName + ".pkt";
     _capturePacketsFile.setFileName(_capturePacketsFileName);
     if (!audio->startRecording(_captureSoundFileName) || !_capturePacketsFile.open(QIODevice::WriteOnly)) {
         return false;
@@ -76,6 +75,9 @@ AvatarCapture::CaptureState AvatarCapture::updateCaptureState(const OtherAvatarP
                     DependencyManager::get<AudioClient>().data()->stopRecording();
                     _capturePacketsFile.flush();
                     _capturePacketsFile.close();
+                    auto nodeList = DependencyManager::get<NodeList>();
+                    connect(nodeList.data(), &NodeList::usernameFromIDReply, this, &AvatarCapture::saveMetadataWithUsername);
+                    nodeList->requestUsernameFromSessionID(_avatarInfo.sessionId);
                     emit recordFinish(res);
                     _state = CaptureState::DoneRecording;
                 }
@@ -91,7 +93,7 @@ AvatarCapture::CaptureState AvatarCapture::updateCaptureState(const OtherAvatarP
                 _lastDeltaTime = 0;
                 _lastReadPacket.clear();
                 QString captureName = QFileInfo(_capturePacketsFile.fileName()).fileName().section(".", 0, 0);
-                setMetadata(getDefaultCaptureSaveDirectory() + captureName + ".txt", _avatarToPlaybackID.toString(), false);
+                writeMetadata(getDefaultCaptureSaveDirectory() + captureName + ".txt", _avatarToPlaybackID.toString(), _avatarInfo.userName, false);
                 _state = CaptureState::DonePlaying;
             }
             _playbackDeltaTime = 0;
@@ -100,6 +102,16 @@ AvatarCapture::CaptureState AvatarCapture::updateCaptureState(const OtherAvatarP
         }
     }
     return _state;
+}
+
+void AvatarCapture::saveMetadataWithUsername(const QString& nodeID, const QString& username,
+                                             const QString& machineFingerprint, bool isAdmin) {
+        QString metaPath = getDefaultCaptureSaveDirectory() + _captureName + ".txt";
+        if (!writeMetadata(metaPath, _avatarInfo.sessionId, username != "" ? username : _avatarInfo.displayName, true)) {
+            qCDebug(interfaceapp) << "Error saving capture metadata: " << metaPath;
+        }
+        auto nodeList = DependencyManager::get<NodeList>();
+        disconnect(nodeList.data(), &NodeList::usernameFromIDReply, this, &AvatarCapture::saveMetadataWithUsername);
 }
 
 void AvatarCapture::includeAvatarInHash(AvatarHash& avatarHash) {
@@ -131,6 +143,7 @@ void AvatarCapture::setActor(AvatarSharedPointer& actor) {
         _avatarToPlaybackID = avatar->getSessionUUID();
     }
 }
+
 void AvatarCapture::play(const glm::vec3& pos) {
     if (_recordedAvatar != nullptr) {
         _isPlayingBack = true;
@@ -167,16 +180,74 @@ bool AvatarCapture::readNextCapturedPacket() {
     return false;
 }
 
-bool AvatarCapture::setMetadata(const QString& path, const QUuid& owner, bool isNew) {
+bool AvatarCapture::writeMetadata(const QString& path, const QUuid& owner, const QString& userName, bool isNew) {
     QFile metaFile(path);
-    qDebug() << "Setting metafile: " << path;
     if (metaFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream stream(&metaFile);
         stream << owner.toString() << "\n";
+        stream << userName << "\n";
         stream << (isNew ? "true" : "false");
         metaFile.flush();
         metaFile.close();
         return true;
     }
     return false;
+}
+
+bool AvatarCapture::readMetaFile(const QString& path, QUuid& owner, QString& userName, bool& isNew) {
+    QFile metaFile(path);
+    bool success = false;
+    if (metaFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream stream(&metaFile);
+        QString ownerId;
+        stream >> ownerId;
+        owner = QUuid(ownerId);
+        if (!owner.isNull()) {
+            stream >> userName;
+            QString isNewString;
+            stream >> isNewString;
+            isNew = isNewString == "true";
+            bool isFalse = isNewString == "false";
+            success = isNew || isFalse;
+        }
+        metaFile.flush();
+        metaFile.close();
+    }
+    return success;
+}
+
+QVariantMap AvatarCapture::getCaptures() {
+    QDir dir(getDefaultCaptureSaveDirectory());
+    auto captureFiles = dir.entryList(QStringList() << "*.pkt", QDir::Filter::Files, QDir::SortFlag::Name);
+    QVariantMap res;
+    for (int i = 0; i < captureFiles.size(); i++) {
+        QVariantMap capture;
+        auto fileParts = captureFiles[i].split(".");
+        QString captureName = captureFiles[i].section(".", 0, 0);
+        QFileInfo metaFileInfo(dir.absoluteFilePath(captureName + ".txt"));
+        QUuid owner;
+        bool isNew;
+        QString userName;
+        qDebug() << "Reading: " << metaFileInfo.absoluteFilePath();
+        if (!metaFileInfo.exists() || !readMetaFile(metaFileInfo.absoluteFilePath(), owner, userName, isNew)) {
+            continue;
+        }
+        QFileInfo packetFileInfo(dir.absoluteFilePath(captureName + ".pkt"));
+        QFileInfo audioFileInfo(dir.absoluteFilePath(captureName + ".wav"));
+
+        capture.insert("packets", packetFileInfo.absoluteFilePath());
+        capture.insert("audio", audioFileInfo.exists() ? audioFileInfo.absoluteFilePath() : "");
+        capture.insert("hasAudio", audioFileInfo.exists());
+        capture.insert("isNew", isNew);
+        QString ownerId = owner.toString();
+        capture.insert("owner", ownerId);
+        capture.insert("userName", userName);
+        if (!res.contains(userName)) {
+            res.insert(userName, QList<QVariant>());
+        }
+        auto ownerArray = res[userName].toList();
+        ownerArray.push_back(capture);
+        res[userName] = ownerArray;
+    }
+    return res;
 }

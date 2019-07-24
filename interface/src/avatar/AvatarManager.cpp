@@ -1028,22 +1028,14 @@ void AvatarManager::accumulateGrabPositions(std::map<QUuid, GrabLocationAccumula
     }
 }
 
-QVariantMap  AvatarManager::getCaptures() {
-    QDir dir(_avatarCapture.getDefaultCaptureSaveDirectory());
-    auto captureFiles = dir.entryList(QStringList() << "*.wav" << "*.pkt" << "*.meta", QDir::Filter::Files, QDir::SortFlag::Name);
-    for (int i = 0; i < captureFiles.size(); i++) {
-        auto fileParts = captureFiles[i].split(".");
-        QString captureName = captureFiles[i].section(".", 0, 0);
-
-    }
-    QVariantMap res;
-    res.insert("files", captureFiles);
-    return res;
+QVariantMap AvatarManager::getCaptures() {
+    return _avatarCapture.getCaptures();
 }
 
 bool AvatarManager::captureAvatar(const QUuid& avatarID) {
     if (avatarID != _myAvatar->getSessionUUID()) {
-        return _avatarCapture.captureAvatarByID(avatarID);
+        auto avatar = getAvatar(avatarID);
+        return _avatarCapture.captureAvatar(avatarID, avatar->getDisplayName());
     }
     return false;
 }

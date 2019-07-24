@@ -20,6 +20,11 @@
 class AvatarCapture : public QObject {
     Q_OBJECT
 public:
+    struct AvatarMiniInfo {
+        QString displayName;
+        QString userName;
+        QUuid sessionId;
+    };
     enum CaptureState {
         Idle = 0,
         Recording,
@@ -28,7 +33,7 @@ public:
         DonePlaying
     };
     QString getDefaultCaptureSaveDirectory();
-    bool captureAvatarByID(const QUuid& avatarID);
+    bool captureAvatar(const QUuid& avatarID, const QString& displayName);
     CaptureState updateCaptureState(const OtherAvatarPointer& avatar, uint64_t timeNow, float deltaTime);
     void includeAvatarInHash(AvatarHash& avatarHash);
     bool canPlay(const QString& filename);
@@ -37,14 +42,21 @@ public:
     int getRecordingTimeLeft();
     bool writeNextCapturedPacket(const QByteArray& packet, int deltaTime);
     bool readNextCapturedPacket();
+    bool readMetaFile(const QString& filePath, QUuid& owner, QString& userName, bool& isNew);
+    QVariantMap getCaptures();
 
 signals:
     void recordFinish(const QVariantMap& res);
 
+public slots:
+    void saveMetadataWithUsername(const QString& nodeID, const QString& username,
+                                  const QString& machineFingerprint, bool isAdmin);
+
 private:
     bool prepareFilesForCapture();
-    bool setMetadata(const QString& name, const QUuid& owner, bool isNew);
+    bool writeMetadata(const QString& name, const QUuid& owner, const QString& userName, bool isNew);
     std::shared_ptr<AvatarData> _recordedAvatar { nullptr };
+    AvatarMiniInfo _avatarInfo;
     QUuid _avatarToRecordID;
     QUuid _avatarToPlaybackID;
     QUrl _avatarToRecordURL;
@@ -61,6 +73,7 @@ private:
     CaptureState _state{ CaptureState::Idle };
     glm::vec3 _playPosition;
     QFile _capturePacketsFile;
+    QString _captureName;
 };
 
 #endif  // hifi_AvatarCapture_h
