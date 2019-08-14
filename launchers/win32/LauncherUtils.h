@@ -134,6 +134,7 @@ public:
     struct ProcessData {
         int processID = -1;
         BOOL isOpened = FALSE;
+        HWND hWnd = NULL;
     };
 
     static BOOL parseJSON(const CString& jsonTxt, Json::Value& jsonObject);
@@ -145,7 +146,7 @@ public:
     static BOOL launchApplication(LPCWSTR lpApplicationName, LPTSTR cmdArgs = _T(""));
     static BOOL CALLBACK isWindowOpenedCallback(HWND hWnd, LPARAM lparam);
     static BOOL isProcessRunning(const wchar_t *processName, int& processID);
-    static BOOL isProcessWindowOpened(const wchar_t *processName);
+    static BOOL isProcessWindowOpened(const wchar_t *processName, HWND& wWnd);
     static BOOL shutdownProcess(DWORD dwProcessId, UINT uExitCode);
     static BOOL insertRegistryKey(const std::string& regPath, const std::string& name, const std::string& value);
     static BOOL insertRegistryKey(const std::string& regPath, const std::string& name, DWORD value);

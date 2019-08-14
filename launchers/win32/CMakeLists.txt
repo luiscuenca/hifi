@@ -19,6 +19,8 @@ add_executable(HQLauncher
   LauncherApp.cpp
   LauncherApp.h
   Launcher.rc
+  LauncherDialogFrame.cpp
+  LauncherDialogFrame.h
   LauncherDlg.cpp
   LauncherDlg.h
   LauncherManager.cpp

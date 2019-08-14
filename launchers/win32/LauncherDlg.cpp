@@ -663,6 +663,13 @@ void CLauncherDlg::OnTimer(UINT_PTR nIDEvent) {
             // Refresh
             setDrawDialog(_drawStep, true);
         }
+        if (theApp._manager.shouldLaunch()) {
+            if (theApp._manager.needsInstall() || theApp._manager.needsUpdate()) {
+                auto finishProcess = theApp._manager.needsUpdate() ? DrawStep::DrawProcessFinishUpdate : DrawStep::DrawProcessFinishHq;
+                setDrawDialog(finishProcess);
+            }
+            _applicationWND = theApp._manager.launchApplication();
+        }
         if (_showSplash) {
             if (_splashStep == 0) {
                 if (theApp._manager.needsUninstall()) {
@@ -678,9 +685,6 @@ void CLauncherDlg::OnTimer(UINT_PTR nIDEvent) {
                     if (_applicationWND != NULL) {
                         ::SetForegroundWindow(_applicationWND);
                         ::SetActiveWindow(_applicationWND);
-                    }
-                    if (LauncherUtils::isProcessWindowOpened(L"interface.exe")) {
-                        exit(0);
                     }
                 } else if (theApp._manager.needsUpdate()) {
                     startProcess();
@@ -700,17 +704,19 @@ void CLauncherDlg::OnTimer(UINT_PTR nIDEvent) {
                 theApp._manager.updateProgress(LauncherManager::ProcessType::Uninstall, (float)_splashStep/100);
             }
             _splashStep++;
-        } else if (theApp._manager.shouldShutDown()) {
-            if (LauncherUtils::isProcessWindowOpened(L"interface.exe")) {
-                exit(0);
-            }
         }
-        if (theApp._manager.shouldLaunch()) {
-            if (theApp._manager.needsInstall() || theApp._manager.needsUpdate()) {
-                auto finishProcess = theApp._manager.needsUpdate() ? DrawStep::DrawProcessFinishUpdate : DrawStep::DrawProcessFinishHq;
-                setDrawDialog(finishProcess);
+        if (theApp._manager.shouldShutDown()) {
+            if (_applicationWND) {
+                ::ShowWindow(_applicationWND, SW_SHOWMINIMIZED);
+                ::SetParent(_applicationWND, GetSafeHwnd());
+                ::SetWindowLong(_applicationWND, GWL_STYLE, GetWindowLong(_applicationWND, GWL_STYLE) | WS_CHILD);
+                RECT rect;
+                GetWindowRect(&rect);
+                int width = rect.right - rect.left;
+                int height = rect.bottom - rect.top;
+                ::SetWindowPos(_applicationWND, GetSafeHwnd(), 0, 0, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+                theApp._manager.setShouldShutDown(false);
             }
-            _applicationWND = theApp._manager.launchApplication();
         }
     }
 }

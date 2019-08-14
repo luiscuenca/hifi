@@ -56,17 +56,19 @@ BOOL CALLBACK LauncherUtils::isWindowOpenedCallback(HWND hWnd, LPARAM lparam) {
         GetWindowThreadProcessId(hWnd, &idptr);
         if (idptr && (int)(idptr) == processData->processID) {
             processData->isOpened = IsWindowVisible(hWnd);
+            processData->hWnd = hWnd;
             return FALSE;
         }
     }
     return TRUE;
 }
 
-BOOL LauncherUtils::isProcessWindowOpened(const wchar_t *processName) {
+BOOL LauncherUtils::isProcessWindowOpened(const wchar_t *processName, HWND& hWnd) {
     ProcessData processData;
     BOOL result = isProcessRunning(processName, processData.processID);
     if (result) {
         EnumWindows(LauncherUtils::isWindowOpenedCallback, reinterpret_cast<LPARAM>(&processData));
+        hWnd = processData.hWnd;
         return processData.isOpened;
     }
     return result;
@@ -596,8 +598,15 @@ HWND LauncherUtils::executeOnForeground(const CString& path, const CString& para
             DWORD pid;
             DWORD dwTheardId = ::GetWindowThreadProcessId(hwnd, &pid);
             if (pid == infopid) {
-                SetForegroundWindow(hwnd);
-                SetActiveWindow(hwnd);
+                bool ready = false;
+                CString processName = path.Mid(path.ReverseFind('\\') + 1);
+                while (!ready) {
+                    HWND nwin;
+                    ready = isProcessWindowOpened(processName, nwin);
+                    if (ready) {
+                        hwnd = nwin;
+                    }
+                }
                 break;
             }
             hwnd = ::GetNextWindow(hwnd, GW_HWNDNEXT);

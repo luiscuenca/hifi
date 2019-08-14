@@ -86,6 +86,7 @@ public:
     const CString& getdomainURL() const { return _domainURL; }
     const CString& getVersion() const { return _version; }
     BOOL shouldShutDown() const { return _shouldShutdown; }
+    void setShouldShutDown(bool shouldShutDown) { _shouldShutdown = shouldShutDown; }
     BOOL shouldLaunch() const { return _shouldLaunch; }
     BOOL needsUpdate() { return _shouldUpdate; }
     BOOL needsUninstall() { return _shouldUninstall; }

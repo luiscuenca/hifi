@@ -10,6 +10,7 @@
 #define IDR_FONT_REGULAR                140
 #define IDR_FONT_BOLD                   141
 #define IDB_PNG5                        144
+#define IDD_DIALOG1                     147
 #define IDC_BACKGROUND                  1009
 #define IDC_ORGNAME                     1010
 #define IDC_USERNAME                    1011
@@ -33,9 +34,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        147
+#define _APS_NEXT_RESOURCE_VALUE        151
 #define _APS_NEXT_COMMAND_VALUE         32771
 #define _APS_NEXT_CONTROL_VALUE         1028
-#define _APS_NEXT_SYMED_VALUE           103
+#define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif
