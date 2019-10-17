@@ -535,7 +535,7 @@ function onWindowMinimizedChanged() {
 
 function onDisplayModeChanged(isHMDMode) {
     if (isHMDMode) {
-        Camera.setModeString("first person");
+        Camera.setModeString("first person look at");
     }
 
     if (isHMDMode) {
