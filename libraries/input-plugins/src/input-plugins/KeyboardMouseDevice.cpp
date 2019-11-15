@@ -203,10 +203,13 @@ void KeyboardMouseDevice::touchGestureEvent(const QGestureEvent* event) {
                 break;
 
             case Qt::GestureUpdated: {
+                const qreal PINCH_DELTA_STEP = 0.05;
                 qreal totalScaleFactor = pinchGesture->totalScaleFactor();
                 qreal scaleFactorDelta = totalScaleFactor - _lastTotalScaleFactor;
-                _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_GESTURE_PINCH_POS).getChannel()].value = (float) (scaleFactorDelta > 0 ? scaleFactorDelta : 0.0f);
-                _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_GESTURE_PINCH_NEG).getChannel()].value = (float) (scaleFactorDelta < 0 ? -scaleFactorDelta : 0.0f);
+                _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_GESTURE_PINCH_POS).getChannel()].value = 
+                    (float) (scaleFactorDelta > 0 ? PINCH_DELTA_STEP : 0.0f);
+                _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_GESTURE_PINCH_NEG).getChannel()].value =
+                    (float) (scaleFactorDelta < 0 ? PINCH_DELTA_STEP : 0.0f);
                 _lastTotalScaleFactor = totalScaleFactor;
                 break;
             }
