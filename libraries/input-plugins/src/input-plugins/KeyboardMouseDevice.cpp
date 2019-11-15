@@ -126,12 +126,59 @@ void KeyboardMouseDevice::mouseMoveEvent(QMouseEvent* event) {
     }
 }
 
+bool KeyboardMouseDevice::isWheelByTouchPad(QWheelEvent* event) {
+    QPoint delta = event->angleDelta();
+    int deltaValueX = abs(delta.manhattanLength());
+    int deltaValueY = abs(delta.manhattanLength());
+    const int MAX_WHEEL_DELTA_REPEAT = 20;
+    const int COMMON_WHEEL_DELTA_VALUE = 120;
+    if (deltaValueX != 0) {
+        if (abs(_lastWheelDelta.x()) == deltaValueX) {
+            _wheelDeltaRepeats.setX(_wheelDeltaRepeats.x() + 1);
+        } else {
+            _wheelDeltaRepeats.setX(0);
+        }
+        return deltaValueX != COMMON_WHEEL_DELTA_VALUE && _wheelDeltaRepeats.x() < MAX_WHEEL_DELTA_REPEAT;
+    }
+    if (deltaValueY != 0) {
+        if (abs(_lastWheelDelta.y()) == deltaValueY) {
+            _wheelDeltaRepeats.setY(_wheelDeltaRepeats.y() + 1);
+        } else {
+            _wheelDeltaRepeats.setY(0);
+        }
+        return deltaValueY != COMMON_WHEEL_DELTA_VALUE && _wheelDeltaRepeats.y() < MAX_WHEEL_DELTA_REPEAT;
+    }
+    return false;
+}
+
 void KeyboardMouseDevice::wheelEvent(QWheelEvent* event) {
-    auto currentMove = event->angleDelta() / 120.0f;
-    _inputDevice->_axisStateMap[_inputDevice->makeInput(MOUSE_AXIS_WHEEL_X_POS).getChannel()].value = currentMove.x() > 0 ? currentMove.x() : 0;
-    _inputDevice->_axisStateMap[_inputDevice->makeInput(MOUSE_AXIS_WHEEL_X_NEG).getChannel()].value = currentMove.x() < 0 ? -currentMove.x() : 0;
-    _inputDevice->_axisStateMap[_inputDevice->makeInput(MOUSE_AXIS_WHEEL_Y_POS).getChannel()].value = currentMove.y() > 0 ? currentMove.y() : 0;
-    _inputDevice->_axisStateMap[_inputDevice->makeInput(MOUSE_AXIS_WHEEL_Y_NEG).getChannel()].value = currentMove.y() < 0 ? -currentMove.y() : 0;
+    
+    // Check for horizontal and vertical scroll that are not triggered by mouse
+    // These are most likelly triggered by two fingers tap and move on windows
+    if (isWheelByTouchPad(event)) {
+        QPoint delta = event->angleDelta();
+        int deltaValue = delta.manhattanLength();
+
+        _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_AXIS_X_POS).getChannel()].value =
+            (delta.x() > 0 ? delta.x() : 0.0f);
+        _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_AXIS_X_NEG).getChannel()].value =
+            (delta.x() < 0 ? -delta.x() : 0.0f);
+        // Y mouse is inverted positive is pointing up the screen
+        _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_AXIS_Y_POS).getChannel()].value =
+            (delta.y() < 0 ? -0.02 * delta.y() : 0.0f);
+        _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_AXIS_Y_NEG).getChannel()].value =
+            (delta.y() > 0 ? 0.02 * delta.y() : 0.0f);
+    } else {
+        auto currentMove = event->angleDelta() / 120.0f;
+        _inputDevice->_axisStateMap[_inputDevice->makeInput(MOUSE_AXIS_WHEEL_X_POS).getChannel()].value =
+            currentMove.x() > 0 ? currentMove.x() : 0;
+        _inputDevice->_axisStateMap[_inputDevice->makeInput(MOUSE_AXIS_WHEEL_X_NEG).getChannel()].value =
+            currentMove.x() < 0 ? -currentMove.x() : 0;
+        _inputDevice->_axisStateMap[_inputDevice->makeInput(MOUSE_AXIS_WHEEL_Y_POS).getChannel()].value =
+            currentMove.y() > 0 ? currentMove.y() : 0;
+        _inputDevice->_axisStateMap[_inputDevice->makeInput(MOUSE_AXIS_WHEEL_Y_NEG).getChannel()].value =
+            currentMove.y() < 0 ? -currentMove.y() : 0;
+    }
 }
 
 glm::vec2 evalAverageTouchPoints(const QList<QTouchEvent::TouchPoint>& points) {
@@ -167,7 +214,7 @@ void KeyboardMouseDevice::touchUpdateEvent(const QTouchEvent* event) {
         _lastTouchTime = _clock.now();
 
         if (!_isTouching) {
-            _isTouching = event->touchPointStates().testFlag(Qt::TouchPointPressed);
+            _isTouching = true;
         } else {
             auto currentMove = currentPos - _lastTouch;
             _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_AXIS_X_POS).getChannel()].value = (currentMove.x > 0 ? currentMove.x : 0.0f);
