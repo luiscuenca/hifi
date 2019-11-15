@@ -158,8 +158,6 @@ void KeyboardMouseDevice::wheelEvent(QWheelEvent* event) {
     // These are most likelly triggered by two fingers tap and move on windows
     if (isWheelByTouchPad(event)) {
         QPoint delta = event->angleDelta();
-        int deltaValue = delta.manhattanLength();
-
         _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_AXIS_X_POS).getChannel()].value =
             (delta.x() > 0 ? delta.x() : 0.0f);
         _inputDevice->_axisStateMap[_inputDevice->makeInput(TOUCH_AXIS_X_NEG).getChannel()].value =
